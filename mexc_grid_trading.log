@@ -1,0 +1,314 @@
+2025-09-25 18:15:00,271 - INFO - 創建網格 Grid_1:
+2025-09-25 18:15:00,271 - INFO -   當前價格: $203.0800
+2025-09-25 18:15:00,272 - INFO -   價格範圍: $201.0492 - $205.1108
+2025-09-25 18:15:00,272 - INFO -   網格間距: $0.4062
+2025-09-25 18:15:00,272 - INFO -   初始訂單: 0.0492 SOL @ $203.0800
+2025-09-25 18:15:00,437 - INFO - MAKER訂單成功: BUY 0.0492 SOLUSDT @ 202.8769
+2025-09-25 18:15:00,437 - INFO - ✓ 網格 Grid_1 創建成功，訂單ID: C02__599840271118815235120
+2025-09-25 18:16:28,357 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:16:28,360 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:16:29,560 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:16:29,561 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:16:30,723 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:16:30,723 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:16:30,891 - INFO - MAKER訂單成功: BUY 0.0491 SOLUSDT @ 203.2827
+2025-09-25 18:18:13,339 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:18:13,339 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:18:14,500 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:18:14,501 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:18:15,649 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:18:15,649 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:19:28,237 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:19:28,237 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:19:29,501 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:19:29,502 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:19:30,686 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:19:30,686 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:20:07,167 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:07,168 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:20:08,333 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:08,333 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:20:09,703 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:09,703 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:20:26,222 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:26,222 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:20:27,384 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:27,384 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:20:28,513 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:28,514 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:20:28,911 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:28,912 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:20:30,077 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:30,077 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:20:31,242 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:20:31,242 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:21:35,289 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:21:35,290 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:21:36,481 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:21:36,481 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:21:37,675 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:21:37,675 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:21:38,123 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:21:38,124 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:21:39,264 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:21:39,265 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:21:40,444 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:21:40,444 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:22:31,087 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:22:31,088 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:22:32,246 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:22:32,246 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:22:33,468 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:22:33,468 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:23:36,020 - ERROR - 請求失敗: 400 - {"msg":"Order cancelled.","code":-2011}
+2025-09-25 18:23:36,176 - INFO - MAKER訂單成功: SELL 0.0492 SOLUSDT @ 203.6896
+2025-09-25 18:23:36,177 - INFO - 網格 Grid_1 賣出級別 5，利潤: 0.0200
+2025-09-25 18:23:36,448 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:36,449 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:23:37,612 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:37,612 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:23:38,767 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:38,767 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:23:45,105 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:45,105 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:23:46,280 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:46,280 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:23:47,492 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:47,492 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:23:52,260 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:52,261 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:23:53,411 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:53,411 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:23:54,591 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:23:54,591 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:25:11,040 - INFO - MAKER訂單成功: BUY 0.0492 SOLUSDT @ 202.8769
+2025-09-25 18:25:21,197 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:25:21,198 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:25:22,409 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:25:22,410 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:25:23,588 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:25:23,588 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:25:23,766 - INFO - MAKER訂單成功: BUY 0.0491 SOLUSDT @ 203.2827
+2025-09-25 18:25:30,873 - ERROR - 請求失敗: 400 - {"msg":"Order cancelled.","code":-2011}
+2025-09-25 18:25:31,030 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:25:31,031 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:25:32,201 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:25:32,202 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:25:33,460 - ERROR - 請求失敗: 400 - {"msg":"Oversold","code":30005}
+2025-09-25 18:25:33,461 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:25:33,617 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:25:33,617 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:25:34,755 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:25:34,755 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:25:35,960 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:25:35,961 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:30:00,302 - INFO - 創建網格 Grid_2:
+2025-09-25 18:30:00,302 - INFO -   當前價格: $203.1100
+2025-09-25 18:30:00,302 - INFO -   價格範圍: $201.0789 - $205.1411
+2025-09-25 18:30:00,302 - INFO -   網格間距: $0.4062
+2025-09-25 18:30:00,303 - INFO -   初始訂單: 0.0492 SOL @ $203.1100
+2025-09-25 18:30:00,521 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:30:00,521 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:30:01,663 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:30:01,663 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:30:02,893 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:30:02,894 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:30:02,894 - ERROR - ✗ 網格創建失敗: None
+2025-09-25 18:30:07,023 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:30:07,023 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:30:08,175 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:30:08,176 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:30:09,406 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:30:09,406 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:34:25,129 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:25,129 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:34:26,307 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:26,308 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:34:27,524 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:27,524 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:34:46,120 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:46,120 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:34:47,289 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:47,290 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:34:48,442 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:48,442 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:34:53,097 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:53,098 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:34:54,273 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:54,273 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:34:55,457 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:34:55,457 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:35:52,455 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:35:52,456 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:35:53,588 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:35:53,588 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:35:54,730 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:35:54,730 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:35:57,302 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:35:57,302 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:35:58,450 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:35:58,451 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:35:59,608 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:35:59,608 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:36:12,087 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:36:12,087 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:36:13,308 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:36:13,308 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:36:14,505 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:36:14,505 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:38:12,991 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:38:12,991 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:38:14,151 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:38:14,151 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:38:15,314 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:38:15,315 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:38:58,318 - ERROR - 請求失敗: 400 - {"msg":"Order cancelled.","code":-2011}
+2025-09-25 18:38:58,476 - INFO - MAKER訂單成功: SELL 0.0492 SOLUSDT @ 203.6896
+2025-09-25 18:38:58,476 - INFO - 網格 Grid_1 賣出級別 5，利潤: 0.0200
+2025-09-25 18:38:58,643 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:38:58,643 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:38:59,839 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:38:59,839 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:39:00,991 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:00,991 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:39:13,992 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:13,993 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:39:15,231 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:15,232 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:39:16,378 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:16,379 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:39:16,852 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:16,852 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:39:17,992 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:17,993 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:39:19,180 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:19,180 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:39:26,234 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:26,235 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:39:27,399 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:27,400 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:39:28,657 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:28,658 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:39:31,147 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:31,147 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:39:32,311 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:32,311 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:39:33,484 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:33,484 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:39:34,213 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:34,213 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:39:35,402 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:35,402 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:39:36,618 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:39:36,619 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:44:11,149 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:11,150 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:44:12,360 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:12,361 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:44:13,531 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:13,531 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:44:22,238 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:22,238 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:44:23,415 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:23,416 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:44:24,572 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:24,572 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:44:25,228 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:25,228 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:44:26,399 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:26,399 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:44:27,576 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:44:27,576 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:45:00,182 - INFO - 創建網格 Grid_3:
+2025-09-25 18:45:00,182 - INFO -   當前價格: $202.9700
+2025-09-25 18:45:00,182 - INFO -   價格範圍: $200.9403 - $204.9997
+2025-09-25 18:45:00,182 - INFO -   網格間距: $0.4059
+2025-09-25 18:45:00,182 - INFO -   初始訂單: 0.0493 SOL @ $202.9700
+2025-09-25 18:45:00,364 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:45:00,364 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:45:01,614 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:45:01,615 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:45:02,780 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:45:02,781 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:45:02,781 - ERROR - ✗ 網格創建失敗: None
+2025-09-25 18:46:13,873 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:13,874 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:46:15,022 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:15,022 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:46:16,242 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:16,242 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:46:21,005 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:21,006 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:46:22,158 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:22,159 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:46:23,395 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:23,395 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:46:34,740 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:34,740 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:46:35,906 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:35,906 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:46:37,066 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:37,066 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:46:58,588 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:58,588 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:46:59,755 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:46:59,755 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:47:00,925 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:47:00,925 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:48:04,052 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:04,053 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:48:05,208 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:05,208 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:48:06,373 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:06,373 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:48:06,783 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:06,783 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:48:07,960 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:07,960 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:48:09,112 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:09,112 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:48:14,061 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:14,061 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:48:15,243 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:15,243 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:48:16,447 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:16,447 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:48:21,037 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:21,038 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:48:22,189 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:22,190 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:48:23,341 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:48:23,341 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:49:37,368 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:49:37,368 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:49:38,622 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:49:38,622 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:49:39,772 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:49:39,772 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:49:52,255 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:49:52,255 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:49:53,426 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:49:53,426 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:49:54,576 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:49:54,576 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:50:31,194 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:31,194 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:50:32,385 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:32,386 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:50:33,542 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:33,542 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:50:36,224 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:36,224 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:50:37,435 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:37,435 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:50:38,635 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:38,635 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:50:47,159 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:47,159 - WARNING - MAKER訂單失敗 (嘗試 1/3): None
+2025-09-25 18:50:48,319 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:48,319 - WARNING - MAKER訂單失敗 (嘗試 2/3): None
+2025-09-25 18:50:49,510 - ERROR - 請求失敗: 400 - {"msg":"Insufficient position","code":30004}
+2025-09-25 18:50:49,511 - WARNING - MAKER訂單失敗 (嘗試 3/3): None
+2025-09-25 18:50:55,373 - INFO - 程序被用戶中斷
+2025-09-25 18:50:55,512 - ERROR - 請求失敗: 400 - {"msg":"Order filled.","code":-2011}
+2025-09-25 18:50:55,513 - INFO - 網格 Grid_1 已關閉，總利潤: 0.0400，交易次數: 2
