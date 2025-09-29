@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-MEXC 網格交易策略 - 修復版
+MEXC 網格交易策略 - 雲端部署修復版
+主要修復：移除所有 input() 互動式輸入，適配雲端環境
 """
 
 import requests
@@ -10,6 +11,7 @@ import hashlib
 import hmac
 import json
 import threading
+import os
 from urllib.parse import urlencode
 from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_DOWN
@@ -35,6 +37,7 @@ DISPLAY_INTERVAL = 1.0  # 終端顯示間隔 (秒)
 # 安全配置
 MIN_ORDER_VALUE = 1.0  # MEXC最小訂單金額 (USDT)
 SOL_MIN_QUANTITY = 0.0001  # SOL最小交易精度
+SKIP_BALANCE_CHECK = True  # 雲端部署時跳過餘額確認
 
 # Debug 配置
 DEBUG_MODE = True
@@ -503,35 +506,38 @@ def should_create_new_grid():
 def main():
     # 驗證配置參數
     if INITIAL_CAPITAL / GRID_COUNT < MIN_ORDER_VALUE:
-        print(f"❌ 配置錯誤: 每格資金 {INITIAL_CAPITAL/GRID_COUNT:.2f} USDT 低於最小要求 {MIN_ORDER_VALUE} USDT")
-        print(f"請將 INITIAL_CAPITAL 調整至至少 {MIN_ORDER_VALUE * GRID_COUNT} USDT")
+        error_msg = f"❌ 配置錯誤: 每格資金 {INITIAL_CAPITAL/GRID_COUNT:.2f} USDT 低於最小要求 {MIN_ORDER_VALUE} USDT"
+        logging.error(error_msg)
+        logging.error(f"請將 INITIAL_CAPITAL 調整至至少 {MIN_ORDER_VALUE * GRID_COUNT} USDT")
         return
     
     # 初始化交易者和策略
     trader = MEXCTrader(API_KEY, SECRET_KEY)
     
     # 測試API連接
-    print("🔌 測試API連接...")
+    logging.info("🔌 測試API連接...")
     test_price = trader.get_current_price(SYMBOL)
     if not test_price:
-        print("❌ API連接失敗，請檢查API密鑰")
+        logging.error("❌ API連接失敗，請檢查API密鑰")
         return
     
-    print(f"✓ API連接成功，當前 {SYMBOL} 價格: ${test_price:.4f}")
+    logging.info(f"✓ API連接成功，當前 {SYMBOL} 價格: ${test_price:.4f}")
     
-    # 檢查帳戶餘額
-    usdt_balance = trader.get_account_balance('USDT')
-    if usdt_balance < INITIAL_CAPITAL * 1.2:  # 預留20%緩衝
-        print(f"⚠️  警告: USDT餘額 {usdt_balance:.2f} 可能不足，建議至少 {INITIAL_CAPITAL*1.2:.2f} USDT")
-        response = input("是否繼續? (y/n): ")
-        if response.lower() != 'y':
-            return
+    # 檢查帳戶餘額（雲端部署時可自動跳過）
+    if not SKIP_BALANCE_CHECK:
+        usdt_balance = trader.get_account_balance('USDT')
+        if usdt_balance < INITIAL_CAPITAL * 1.2:  # 預留20%緩衝
+            warning_msg = f"⚠️  警告: USDT餘額 {usdt_balance:.2f} 可能不足，建議至少 {INITIAL_CAPITAL*1.2:.2f} USDT"
+            logging.warning(warning_msg)
+            logging.warning("雲端部署模式：繼續執行（如需停止請調整 SKIP_BALANCE_CHECK 配置）")
+    else:
+        logging.info("⏭️  跳過餘額檢查（雲端部署模式）")
     
     strategy = GridStrategy(trader, SYMBOL, INITIAL_CAPITAL, GRID_COUNT, GRID_BOUNDARY_PERCENT)
     
-    print("🚀 MEXC 網格交易策略啟動")
-    print(f"📊 配置: {GRID_COUNT}網格 | ±{GRID_BOUNDARY_PERCENT*100}%邊界 | {INITIAL_CAPITAL}U本金")
-    print("按 Ctrl+C 安全停止程序\n")
+    logging.info("🚀 MEXC 網格交易策略啟動")
+    logging.info(f"📊 配置: {GRID_COUNT}網格 | ±{GRID_BOUNDARY_PERCENT*100}%邊界 | {INITIAL_CAPITAL}U本金")
+    logging.info("雲端部署模式運行中...")
     
     last_grid_create_minute = -1
     last_display_time = time.time()
@@ -544,12 +550,12 @@ def main():
             # 檢查是否需要創建新網格
             if (should_create_new_grid() and 
                 now.minute != last_grid_create_minute):
-                print(f"🕐 {now.strftime('%H:%M')} - 創建新網格...")
+                logging.info(f"🕐 {now.strftime('%H:%M')} - 創建新網格...")
                 grid_id = strategy.create_new_grid()
                 if grid_id:
-                    print(f"✅ 網格 {grid_id} 創建成功")
+                    logging.info(f"✅ 網格 {grid_id} 創建成功")
                 else:
-                    print(f"❌ 網格創建失敗")
+                    logging.error(f"❌ 網格創建失敗")
                 last_grid_create_minute = now.minute
             
             # 更新網格狀態
@@ -557,26 +563,25 @@ def main():
             
             # 顯示狀態 (每秒一次)
             if current_time - last_display_time >= DISPLAY_INTERVAL:
-                print("\033[2J\033[H")  # 清屏
-                print(strategy.get_status_report())
+                # 雲端環境不清屏，直接輸出
+                status_report = strategy.get_status_report()
+                logging.info(f"\n{status_report}")
                 last_display_time = current_time
             
             time.sleep(PRICE_CHECK_INTERVAL)
             
     except KeyboardInterrupt:
-        print("\n🛑 程序被用戶中斷，正在安全關閉...")
-        logging.info("程序被用戶中斷")
+        logging.info("\n🛑 程序被用戶中斷，正在安全關閉...")
         # 關閉所有網格
         active_grids = [grid_id for grid_id, grid in strategy.grids.items() if grid['active']]
         if active_grids:
-            print(f"🔄 正在關閉 {len(active_grids)} 個活躍網格...")
+            logging.info(f"🔄 正在關閉 {len(active_grids)} 個活躍網格...")
             for grid_id in active_grids:
                 strategy.close_grid(grid_id)
-            print("✅ 所有網格已安全關閉")
-        print("👋 程序已退出")
+            logging.info("✅ 所有網格已安全關閉")
+        logging.info("👋 程序已退出")
     except Exception as e:
-        logging.error(f"程序異常: {e}")
-        print(f"❌ 程序發生異常: {e}")
+        logging.error(f"程序異常: {e}", exc_info=True)
         # 嘗試關閉所有網格
         try:
             for grid_id in list(strategy.grids.keys()):
