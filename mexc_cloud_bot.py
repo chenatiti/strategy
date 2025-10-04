@@ -30,7 +30,6 @@ load_dotenv()
 import time
 import hashlib
 import hmac
-import json
 import os
 from urllib.parse import urlencode
 from datetime import datetime
@@ -44,30 +43,27 @@ SECRET_KEY = os.getenv('MEXC_SECRET_KEY', '0e3a3cb6b0e24b0fbdf82d0c1e15c4b1')
 
 # 交易對
 SYMBOL = "USDCUSDT"
+GRID_TICK = 0.0001  # 價格最小變動單位
 
-# 網格設定
-GRID_TICK = 0.0001  # 每個 TICK 的價格間距
-CAPITAL_PER_LEVEL = 5.0  # 每層資金 5 USDT
-MIN_CAPITAL_TO_OPEN = 10.0  # 開新網格最少需要 10 USDT
+# 資金設定
+CAPITAL_PERCENT = 0.5  # 每次用總資產的 50% 開單
 
 # 時間設定
-CHECK_PRICE_INTERVAL = 0.5  # 檢查價格間隔（秒）- 快速響應
+CHECK_PRICE_INTERVAL = 0.3  # 查價間隔（秒）
 DISPLAY_STATUS_INTERVAL = 60  # 顯示狀態間隔（秒）
 
-# 訂單設定
-ORDER_TIMEOUT = 5  # 訂單超時（秒）- Limit Order 如果 5 秒沒成交就取消重掛
-PRICE_OFFSET = 0.0001  # 價格偏移 - 買入加價，賣出減價，加速成交
-
 # 開單時間控制
-ENABLE_SCHEDULE = True  # 是否啟用定時開單
-SCHEDULE_MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]  # 每 5 分鐘
+ENABLE_SCHEDULE = True
+SCHEDULE_MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+
+# 訂單設定
+ORDER_TIMEOUT = 10  # 限價單等待時間（秒）
 
 # DEBUG 模式
 DEBUG_MODE = os.getenv('DEBUG_MODE', 'True').lower() == 'true'
 
 # ==================== 配置區域結束 ====================
 
-# 日誌設定
 log_level = logging.DEBUG if DEBUG_MODE else logging.INFO
 logging.basicConfig(
     level=log_level,
@@ -83,7 +79,6 @@ class MEXCClient:
         self.api_key = api_key
         self.secret_key = secret_key
         self.base_url = "https://api.mexc.com"
-        self.market_order_method = None  # 記錄哪種 Market Order 方法可用
     
     def _generate_signature(self, query_string):
         return hmac.new(
@@ -114,10 +109,8 @@ class MEXCClient:
             else:
                 response = requests.get(url, params=sorted_params, headers=headers, timeout=30)
             
-            if DEBUG_MODE:
+            if DEBUG_MODE and method in ['POST', 'DELETE']:
                 logging.debug(f"API {method} {endpoint}: {response.status_code}")
-                if response.status_code != 200:
-                    logging.debug(f"Response: {response.text}")
             
             if response.status_code == 200:
                 return response.json()
@@ -132,10 +125,7 @@ class MEXCClient:
         """獲取當前價格"""
         result = self._request('GET', "/api/v3/ticker/price", {'symbol': symbol})
         if result and 'price' in result:
-            price = float(result['price'])
-            if DEBUG_MODE:
-                logging.debug(f"當前價格: {price:.4f}")
-            return price
+            return round(float(result['price']), 4)
         return None
     
     def get_balance(self, asset):
@@ -144,10 +134,7 @@ class MEXCClient:
         if result and 'balances' in result:
             for balance in result['balances']:
                 if balance['asset'] == asset:
-                    free = float(balance['free'])
-                    if DEBUG_MODE:
-                        logging.debug(f"{asset} 餘額: {free:.4f}")
-                    return free
+                    return float(balance['free'])
         return 0
     
     def place_limit_order(self, symbol, side, quantity, price):
@@ -161,13 +148,10 @@ class MEXCClient:
             'price': str(price)
         }
         
-        if DEBUG_MODE:
-            logging.debug(f"限價單參數: {params}")
-        
         result = self._request('POST', "/api/v3/order", params)
         
         if result and 'orderId' in result:
-            logging.info(f"✓ 限價單已掛出: {side} {quantity} @ ${price}")
+            logging.info(f"✓ 限價單掛出: {side} {quantity} @ ${price}")
         else:
             logging.error(f"✗ 限價單失敗: {result}")
         
@@ -177,176 +161,44 @@ class MEXCClient:
         """取消訂單"""
         result = self._request('DELETE', "/api/v3/order", {'symbol': symbol, 'orderId': order_id})
         if result:
-            logging.info(f"✓ 訂單已取消: {order_id}")
+            logging.info(f"訂單已取消: {order_id}")
         return result
-        """
-        下市價單 - 嘗試兩種方式
-        方式 A: quoteOrderQty (指定花費的 USDT)
-        方式 B: quantity (指定買入的 USDC 數量)
-        """
-        # 如果已經知道哪種方法可用，直接用
-        if self.market_order_method == 'quoteOrderQty' and amount_usdt:
-            result = self._place_market_order_quote(symbol, side, amount_usdt)
-            if not result:
-                logging.error(f"市價單失敗 (quoteOrderQty): side={side}, amount={amount_usdt}")
-            return result
-        elif self.market_order_method == 'quantity' and quantity:
-            result = self._place_market_order_quantity(symbol, side, quantity)
-            if not result:
-                logging.error(f"市價單失敗 (quantity): side={side}, qty={quantity}")
-            return result
-        
-        # 如果還不知道，先嘗試 quoteOrderQty
-        if amount_usdt:
-            logging.info(f"嘗試方式 A: quoteOrderQty = {amount_usdt} USDT")
-            result = self._place_market_order_quote(symbol, side, amount_usdt)
-            if result:
-                self.market_order_method = 'quoteOrderQty'
-                logging.info("✓ 方式 A 成功！之後都用這個方法")
-                return result
-            
-            # 如果方式 A 失敗，嘗試方式 B
-            if quantity:
-                logging.info(f"方式 A 失敗，嘗試方式 B: quantity = {quantity}")
-                result = self._place_market_order_quantity(symbol, side, quantity)
-                if result:
-                    self.market_order_method = 'quantity'
-                    logging.info("✓ 方式 B 成功！之後都用這個方法")
-                    return result
-                else:
-                    logging.error(f"兩種方式都失敗！檢查 API 回應")
-        
-        return None
-    
-    def _place_market_order_quote(self, symbol, side, amount_usdt):
-        """方式 A: 使用 quoteOrderQty"""
-        params = {
-            'symbol': symbol,
-            'side': side,
-            'type': 'MARKET',
-            'quoteOrderQty': str(amount_usdt)
-        }
-        return self._request('POST', "/api/v3/order", params)
-    
-    def _place_market_order_quantity(self, symbol, side, quantity):
-        """方式 B: 使用 quantity"""
-        params = {
-            'symbol': symbol,
-            'side': side,
-            'type': 'MARKET',
-            'quantity': str(quantity)
-        }
-        return self._request('POST', "/api/v3/order", params)
     
     def query_order(self, symbol, order_id):
         """查詢訂單狀態"""
         return self._request('GET', "/api/v3/order", {'symbol': symbol, 'orderId': order_id})
 
-class GridLevel:
-    """單個網格層級"""
-    def __init__(self, price):
-        self.price = round(price, 4)
-        self.positions = []  # 該層的持倉列表
-        self.trade_count = 0  # 該層的交易次數
-        self.realized_profit = 0  # 該層的已實現利潤
-    
-    def add_position(self, quantity, buy_price, buy_time):
-        """添加持倉"""
-        self.positions.append({
-            'quantity': quantity,
-            'buy_price': buy_price,
-            'buy_time': buy_time
-        })
-        logging.info(f"  Level {self.price:.4f}: 新增持倉 {quantity:.4f} USDC @ ${buy_price:.4f}")
-    
-    def sell_position(self, sell_price):
-        """賣出該層最早的持倉"""
-        if not self.positions:
-            return 0
-        
-        position = self.positions.pop(0)
-        quantity = position['quantity']
-        profit = (sell_price - position['buy_price']) * quantity
-        
-        self.trade_count += 1
-        self.realized_profit += profit
-        
-        logging.info(f"  Level {self.price:.4f}: 賣出 {quantity:.4f} USDC @ ${sell_price:.4f}")
-        logging.info(f"    利潤: {profit:.6f} USDT (買入價: ${position['buy_price']:.4f})")
-        
-        return profit
-    
-    def has_position(self):
-        """是否有持倉"""
-        return len(self.positions) > 0
-    
-    def total_quantity(self):
-        """總持倉數量"""
-        return sum(p['quantity'] for p in self.positions)
-    
-    def unrealized_pnl(self, current_price):
-        """未實現盈虧"""
-        total = 0
-        for pos in self.positions:
-            total += (current_price - pos['buy_price']) * pos['quantity']
-        return total
-
-class MovingGrid:
-    """單個移動網格"""
-    def __init__(self, grid_id, open_price):
+class FixedGrid:
+    """單個固定網格"""
+    def __init__(self, grid_id, open_price, capital):
         self.id = grid_id
         self.open_price = round(open_price, 4)
+        self.capital = capital
         self.created_time = datetime.now()
         self.active = True
         
-        # 計算網格邊界
-        self.upper_bound = round(open_price + GRID_TICK, 4)  # 0.9996
-        self.lower_bound = round(open_price - GRID_TICK, 4)  # 0.9994
-        self.close_upper = round(open_price + 2 * GRID_TICK, 4)  # 0.9997
-        self.close_lower = round(open_price - 2 * GRID_TICK, 4)  # 0.9993
+        # 計算網格價格
+        self.buy_price = self.open_price
+        self.sell_price = round(self.open_price + GRID_TICK, 4)
+        self.upper_close = round(self.open_price + 2 * GRID_TICK, 4)
+        self.lower_close = round(self.open_price - GRID_TICK, 4)
         
-        # 三個層級
-        self.levels = {
-            self.upper_bound: GridLevel(self.upper_bound),
-            self.open_price: GridLevel(self.open_price),
-            self.lower_bound: GridLevel(self.lower_bound)
-        }
-        
+        # 狀態
+        self.position = None  # {'quantity': float, 'buy_price': float, 'buy_time': float}
         self.total_profit = 0
-        self.total_trades = 0
-    
-    def get_level(self, price):
-        """獲取最接近的層級"""
-        price = round(price, 4)
-        for level_price in self.levels.keys():
-            if abs(price - level_price) < GRID_TICK / 2:
-                return self.levels[level_price]
-        return None
+        self.trade_count = 0
+        
+        # 當前訂單
+        self.pending_order = None  # {'order_id': str, 'side': str, 'created_time': float}
     
     def should_close(self, current_price):
         """是否應該關閉網格"""
-        return current_price <= self.close_lower or current_price >= self.close_upper
-    
-    def get_summary(self, current_price):
-        """獲取網格摘要"""
-        unrealized = sum(level.unrealized_pnl(current_price) for level in self.levels.values())
-        
-        positions_info = []
-        for price, level in sorted(self.levels.items()):
-            if level.has_position():
-                positions_info.append(f"{price:.4f}({level.total_quantity():.4f})")
-        
-        return {
-            'positions': ' + '.join(positions_info) if positions_info else '無持倉',
-            'realized': self.total_profit,
-            'unrealized': unrealized,
-            'trades': self.total_trades
-        }
+        return current_price <= self.lower_close or current_price >= self.upper_close
 
-class USDCUSDTGridBot:
+class FixedGridBot:
     def __init__(self, client):
         self.client = client
-        self.grids = {}
+        self.current_grid = None
         self.grid_counter = 0
         self.total_profit = 0
         self.total_trades = 0
@@ -374,7 +226,7 @@ class USDCUSDTGridBot:
     def _display_startup(self):
         """顯示啟動資訊"""
         print_separator()
-        logging.info("🚀 USDC/USDT 移動網格交易機器人")
+        logging.info("USDC/USDT 固定網格套利機器人")
         print_separator()
         
         if self.initial_assets:
@@ -386,24 +238,33 @@ class USDCUSDTGridBot:
             logging.info(f"  總值: {self.initial_assets['total']:.2f} USDT")
             logging.info("")
             logging.info("⚙️  策略配置:")
-            logging.info(f"  網格間距: ±{GRID_TICK:.4f}")
-            logging.info(f"  每層資金: {CAPITAL_PER_LEVEL:.1f} USDT")
-            logging.info(f"  開單條件: 餘額 >= {MIN_CAPITAL_TO_OPEN:.1f} USDT")
+            logging.info(f"  每單資金: 總資產 × {CAPITAL_PERCENT * 100}%")
+            logging.info(f"  價格 TICK: {GRID_TICK}")
             logging.info(f"  開單時間: 每小時 {SCHEDULE_MINUTES} 分")
             logging.info(f"  查價間隔: {CHECK_PRICE_INTERVAL} 秒")
-            logging.info(f"  DEBUG 模式: {'開啟' if DEBUG_MODE else '關閉'}")
         print_separator()
     
     def create_grid(self):
         """創建新網格"""
+        if self.current_grid and self.current_grid.active:
+            logging.warning("已有活躍網格，跳過開單")
+            return None
+        
         current_price = self.client.get_price(SYMBOL)
         if not current_price:
             logging.error("無法獲取當前價格")
             return None
         
-        usdt_balance = self.client.get_balance('USDT')
-        if usdt_balance < MIN_CAPITAL_TO_OPEN:
-            logging.warning(f"💸 資金不足: 需要 {MIN_CAPITAL_TO_OPEN} USDT，只有 {usdt_balance:.2f} USDT")
+        # 計算開單資金
+        current_assets = self._get_total_assets()
+        if not current_assets:
+            logging.error("無法獲取資產資訊")
+            return None
+        
+        capital = current_assets['total'] * CAPITAL_PERCENT
+        
+        if capital < 5:
+            logging.error(f"資金不足: {capital:.2f} USDT")
             return None
         
         self.grid_counter += 1
@@ -412,19 +273,18 @@ class USDCUSDTGridBot:
         print_separator()
         logging.info(f"📊 創建網格 {grid_id}")
         logging.info(f"開單價格: ${current_price:.4f}")
+        logging.info(f"開單資金: {capital:.2f} USDT ({CAPITAL_PERCENT * 100}%)")
         
-        # 創建網格對象
-        grid = MovingGrid(grid_id, current_price)
+        grid = FixedGrid(grid_id, current_price, capital)
         
-        logging.info(f"網格範圍: ${grid.lower_bound:.4f} - ${grid.upper_bound:.4f}")
-        logging.info(f"關閉條件: < ${grid.close_lower:.4f} 或 > ${grid.close_upper:.4f}")
+        logging.info(f"買入價格: ${grid.buy_price:.4f}")
+        logging.info(f"賣出價格: ${grid.sell_price:.4f}")
+        logging.info(f"關閉條件: < ${grid.lower_close:.4f} 或 > ${grid.upper_close:.4f}")
         logging.info("")
         
-        # 在開單價買入第一份
-        success = self._buy_at_level(grid, current_price)
-        
-        if success:
-            self.grids[grid_id] = grid
+        # 立即嘗試買入
+        if self._try_buy(grid, current_price):
+            self.current_grid = grid
             logging.info(f"✓ 網格 {grid_id} 創建成功")
             print_separator()
             return grid_id
@@ -433,237 +293,188 @@ class USDCUSDTGridBot:
             print_separator()
             return None
     
-    def _buy_at_level(self, grid, price):
-        """在指定價格層級買入"""
-        level = grid.get_level(price)
-        if not level:
-            logging.error(f"價格 {price:.4f} 不在網格層級內")
+    def _try_buy(self, grid, current_price):
+        """嘗試買入"""
+        # 如果已有持倉，不買
+        if grid.position:
+            return False
+        
+        # 如果有掛單，不重複掛
+        if grid.pending_order and grid.pending_order['side'] == 'BUY':
+            return False
+        
+        # 只在買入價時買入
+        if current_price != grid.buy_price:
             return False
         
         # 計算買入數量
-        quantity = round(CAPITAL_PER_LEVEL / price, 4)
+        quantity = round(grid.capital / grid.buy_price, 4)
         
-        # 限價單價格：稍高於市價，加速成交
-        limit_price = round(price + PRICE_OFFSET, 4)
+        logging.info(f"🛒 買入: {quantity:.4f} USDC @ ${grid.buy_price:.4f}")
         
-        logging.info(f"🛒 買入: {CAPITAL_PER_LEVEL:.2f} USDT @ ${limit_price:.4f} (市價 ${price:.4f})")
+        result = self.client.place_limit_order(SYMBOL, 'BUY', quantity, grid.buy_price)
         
-        # 下限價單
-        result = self.client.place_limit_order(
-            SYMBOL, 
-            'BUY', 
-            quantity,
-            limit_price
-        )
+        if result and 'orderId' in result:
+            grid.pending_order = {
+                'order_id': result['orderId'],
+                'side': 'BUY',
+                'created_time': time.time(),
+                'quantity': quantity
+            }
+            return True
         
-        if not result or 'orderId' not in result:
-            logging.error(f"買入失敗: {result}")
+        return False
+    
+    def _try_sell(self, grid, current_price):
+        """嘗試賣出"""
+        # 如果沒持倉，不賣
+        if not grid.position:
             return False
         
-        order_id = result['orderId']
+        # 如果有掛單，不重複掛
+        if grid.pending_order and grid.pending_order['side'] == 'SELL':
+            return False
         
-        # 等待成交，超時則取消重掛
-        start_time = time.time()
-        while time.time() - start_time < ORDER_TIMEOUT:
-            time.sleep(0.5)
-            order_info = self.client.query_order(SYMBOL, order_id)
+        # 只在賣出價時賣出
+        if current_price != grid.sell_price:
+            return False
+        
+        quantity = grid.position['quantity']
+        
+        logging.info(f"💰 賣出: {quantity:.4f} USDC @ ${grid.sell_price:.4f}")
+        
+        result = self.client.place_limit_order(SYMBOL, 'SELL', quantity, grid.sell_price)
+        
+        if result and 'orderId' in result:
+            grid.pending_order = {
+                'order_id': result['orderId'],
+                'side': 'SELL',
+                'created_time': time.time(),
+                'quantity': quantity
+            }
+            return True
+        
+        return False
+    
+    def _check_pending_order(self, grid):
+        """檢查掛單狀態"""
+        if not grid.pending_order:
+            return
+        
+        order_id = grid.pending_order['order_id']
+        order_info = self.client.query_order(SYMBOL, order_id)
+        
+        if not order_info:
+            return
+        
+        status = order_info.get('status')
+        
+        if status == 'FILLED':
+            # 成交
+            side = grid.pending_order['side']
+            filled_qty = float(order_info.get('executedQty', grid.pending_order['quantity']))
+            filled_price = float(order_info.get('price', 0))
             
-            if not order_info:
-                logging.error("查詢訂單失敗")
-                return False
-            
-            status = order_info.get('status')
-            
-            if status == 'FILLED':
-                filled_qty = float(order_info.get('executedQty', quantity))
-                filled_price = float(order_info.get('cummulativeQuoteQty', CAPITAL_PER_LEVEL)) / filled_qty
-                
-                level.add_position(filled_qty, filled_price, time.time())
+            if side == 'BUY':
+                grid.position = {
+                    'quantity': filled_qty,
+                    'buy_price': filled_price,
+                    'buy_time': time.time()
+                }
                 logging.info(f"✓ 買入成交: {filled_qty:.4f} USDC @ ${filled_price:.4f}")
-                return True
+            else:  # SELL
+                if grid.position:
+                    profit = (filled_price - grid.position['buy_price']) * filled_qty
+                    grid.total_profit += profit
+                    grid.trade_count += 1
+                    self.total_profit += profit
+                    self.total_trades += 1
+                    logging.info(f"✓ 賣出成交: 利潤 {profit:.6f} USDT")
+                grid.position = None
             
-            elif status in ['CANCELED', 'REJECTED', 'EXPIRED', 'FAILED']:
-                logging.error(f"訂單失敗: {status}")
-                return False
+            grid.pending_order = None
         
-        # 超時，取消訂單
-        logging.warning(f"訂單超時，取消重掛...")
-        self.client.cancel_order(SYMBOL, order_id)
-        return False
-    
-    def _sell_at_level(self, grid, level, price):
-        """在指定層級賣出"""
-        if not level.has_position():
-            return False
+        elif status in ['CANCELED', 'REJECTED', 'EXPIRED', 'FAILED']:
+            logging.error(f"訂單失敗: {status}")
+            grid.pending_order = None
         
-        # 獲取持倉數量
-        recorded_quantity = level.positions[0]['quantity']
-        
-        # 查詢實際 USDC 餘額（避免 Oversold）
-        actual_balance = self.client.get_balance('USDC')
-        
-        # 使用較小的數量，並預留 0.1% 的餘量
-        quantity = min(recorded_quantity, actual_balance) * 0.999
-        quantity = round(quantity, 4)
-        
-        if quantity < 1.01:  # MEXC 最小賣出數量
-            logging.error(f"數量不足: 記錄 {recorded_quantity:.4f}, 實際 {actual_balance:.4f}, 可賣 {quantity:.4f}")
-            return False
-        
-        logging.info(f"持倉記錄: {recorded_quantity:.4f} USDC, 實際餘額: {actual_balance:.4f} USDC, 賣出: {quantity:.4f} USDC")
-        
-        # 限價單價格：稍低於市價，加速成交
-        limit_price = round(price - PRICE_OFFSET, 4)
-        
-        logging.info(f"💰 賣出: {quantity:.4f} USDC @ ${limit_price:.4f} (市價 ${price:.4f})")
-        
-        # 下限價單
-        result = self.client.place_limit_order(
-            SYMBOL,
-            'SELL',
-            quantity,
-            limit_price
-        )
-        
-        if not result or 'orderId' not in result:
-            logging.error(f"❌ 賣出失敗!")
-            logging.error(f"   交易對: {SYMBOL}")
-            logging.error(f"   數量: {quantity:.4f} USDC")
-            logging.error(f"   限價: ${limit_price:.4f}")
-            logging.error(f"   市價: ${price:.4f}")
-            logging.error(f"   API 回應: {result}")
-            return False
-        
-        order_id = result['orderId']
-        
-        # 等待成交，超時則取消重掛
-        start_time = time.time()
-        while time.time() - start_time < ORDER_TIMEOUT:
-            time.sleep(0.5)
-            order_info = self.client.query_order(SYMBOL, order_id)
-            
-            if not order_info:
-                logging.error("查詢訂單失敗")
+        elif status in ['NEW', 'PARTIALLY_FILLED']:
+            # 檢查是否超時
+            if time.time() - grid.pending_order['created_time'] > ORDER_TIMEOUT:
+                logging.warning("訂單超時，取消")
                 self.client.cancel_order(SYMBOL, order_id)
-                return False
-            
-            status = order_info.get('status')
-            
-            if status == 'FILLED':
-                filled_price = float(order_info.get('cummulativeQuoteQty', 0)) / quantity
-                
-                profit = level.sell_position(filled_price)
-                grid.total_profit += profit
-                grid.total_trades += 1
-                self.total_profit += profit
-                self.total_trades += 1
-                
-                logging.info(f"✓ 賣出成交: 利潤 {profit:.6f} USDT")
-                return True
-            
-            elif status in ['CANCELED', 'REJECTED', 'EXPIRED', 'FAILED']:
-                logging.error(f"❌ 訂單失敗: {status}")
-                logging.error(f"   訂單資訊: {order_info}")
-                return False
-        
-        # 超時，取消訂單
-        logging.warning(f"訂單超時，取消...")
-        self.client.cancel_order(SYMBOL, order_id)
-        return False
+                grid.pending_order = None
     
-    def update_grids(self):
-        """更新所有網格"""
+    def update_grid(self):
+        """更新網格"""
+        if not self.current_grid or not self.current_grid.active:
+            return
+        
         current_price = self.client.get_price(SYMBOL)
         if not current_price:
             return
         
-        for grid_id, grid in list(self.grids.items()):
-            if not grid.active:
-                continue
-            
-            # 檢查是否需要關閉
-            if grid.should_close(current_price):
-                logging.info(f"⚠️  價格超出範圍，關閉網格 {grid_id}")
-                self.close_grid(grid_id, current_price)
-                continue
-            
-            # 更新網格狀態
-            self._update_single_grid(grid, current_price)
-    
-    def _update_single_grid(self, grid, current_price):
-        """更新單個網格"""
-        current_price = round(current_price, 4)
+        grid = self.current_grid
         
-        # 判斷當前在哪個層級
-        if abs(current_price - grid.upper_bound) < GRID_TICK / 2:
-            # 在上層 0.9996
-            self._handle_upper_level(grid, current_price)
-        elif abs(current_price - grid.open_price) < GRID_TICK / 2:
-            # 在中層 0.9995
-            self._handle_middle_level(grid, current_price)
-        elif abs(current_price - grid.lower_bound) < GRID_TICK / 2:
-            # 在下層 0.9994
-            self._handle_lower_level(grid, current_price)
-    
-    def _handle_upper_level(self, grid, price):
-        """處理上層 (0.9996) - 賣出中層持倉"""
-        middle_level = grid.levels[grid.open_price]
+        # 檢查是否需要關閉
+        if grid.should_close(current_price):
+            logging.info(f"⚠️  價格 ${current_price:.4f} 超出範圍，關閉網格")
+            self.close_grid(grid, current_price)
+            return
         
-        if middle_level.has_position():
-            logging.info(f"📈 價格上漲到 {price:.4f}，賣出中層持倉")
-            self._sell_at_level(grid, middle_level, price)
-    
-    def _handle_middle_level(self, grid, price):
-        """處理中層 (0.9995) - 賣出下層持倉 或 買入中層"""
-        lower_level = grid.levels[grid.lower_bound]
-        middle_level = grid.levels[grid.open_price]
+        # 檢查掛單狀態
+        self._check_pending_order(grid)
         
-        # 如果下層有持倉，賣出下層
-        if lower_level.has_position():
-            logging.info(f"📈 價格回升到 {price:.4f}，賣出下層持倉")
-            self._sell_at_level(grid, lower_level, price)
-        
-        # 如果中層沒持倉且資金足夠，買入中層
-        elif not middle_level.has_position():
-            usdt_balance = self.client.get_balance('USDT')
-            if usdt_balance >= CAPITAL_PER_LEVEL:
-                logging.info(f"💹 價格在 {price:.4f}，中層無持倉，買入")
-                self._buy_at_level(grid, price)
+        # 嘗試交易
+        if not grid.pending_order:
+            if not grid.position:
+                self._try_buy(grid, current_price)
+            else:
+                self._try_sell(grid, current_price)
     
-    def _handle_lower_level(self, grid, price):
-        """處理下層 (0.9994) - 買入下層"""
-        lower_level = grid.levels[grid.lower_bound]
-        
-        # 如果下層沒持倉且資金足夠，買入
-        if not lower_level.has_position():
-            usdt_balance = self.client.get_balance('USDT')
-            if usdt_balance >= CAPITAL_PER_LEVEL:
-                logging.info(f"📉 價格下跌到 {price:.4f}，買入下層")
-                self._buy_at_level(grid, price)
-    
-    def close_grid(self, grid_id, current_price):
+    def close_grid(self, grid, current_price):
         """關閉網格"""
-        grid = self.grids[grid_id]
         grid.active = False
         
-        logging.info(f"🔴 關閉網格 {grid_id}")
+        # 取消掛單
+        if grid.pending_order:
+            self.client.cancel_order(SYMBOL, grid.pending_order['order_id'])
+            grid.pending_order = None
         
-        # 賣出所有持倉
-        for level in grid.levels.values():
-            while level.has_position():
-                self._sell_at_level(grid, level, current_price)
+        # 止損/止盈賣出
+        if grid.position:
+            quantity = grid.position['quantity']
+            
+            # 用市價 - 0.0001 確保成交
+            sell_price = round(current_price - GRID_TICK, 4)
+            
+            logging.info(f"清倉: {quantity:.4f} USDC @ ${sell_price:.4f}")
+            result = self.client.place_limit_order(SYMBOL, 'SELL', quantity, sell_price)
+            
+            if result and 'orderId' in result:
+                # 等待成交
+                time.sleep(2)
+                order_info = self.client.query_order(SYMBOL, result['orderId'])
+                
+                if order_info and order_info.get('status') == 'FILLED':
+                    filled_price = float(order_info.get('price', sell_price))
+                    profit = (filled_price - grid.position['buy_price']) * quantity
+                    grid.total_profit += profit
+                    self.total_profit += profit
+                    logging.info(f"✓ 清倉成交: {profit:+.6f} USDT")
         
-        logging.info(f"網格 {grid_id} 統計:")
-        logging.info(f"  總交易: {grid.total_trades} 次")
-        logging.info(f"  總利潤: {grid.total_profit:.6f} USDT")
+        logging.info(f"網格 {grid.id} 已關閉")
+        logging.info(f"  交易次數: {grid.trade_count}")
+        logging.info(f"  總利潤: {grid.total_profit:+.6f} USDT")
+        
+        self.current_grid = None
     
     def display_status(self):
-        """顯示詳細狀態"""
+        """顯示狀態"""
         current_assets = self._get_total_assets()
-        current_price = current_assets['price'] if current_assets else None
         
         print_separator()
-        logging.info("📊 USDC/USDT 移動網格交易機器人 - 狀態報告")
+        logging.info("📊 USDC/USDT 固定網格套利 - 狀態報告")
         print_separator()
         logging.info(f"⏰ 時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logging.info("")
@@ -676,42 +487,37 @@ class USDCUSDTGridBot:
             current_value = current_assets['total']
             change = current_value - initial_value
             percent = (change / initial_value * 100) if initial_value > 0 else 0
-            symbol = "+" if change >= 0 else ""
             
             logging.info("💰 資產變化:")
-            logging.info(f"  初始總值: {initial_value:.2f} USDT")
-            logging.info(f"  當前總值: {current_value:.2f} USDT")
-            logging.info(f"  總盈虧: {symbol}{change:.4f} USDT ({symbol}{percent:.2f}%)")
+            logging.info(f"  初始: {initial_value:.2f} USDT")
+            logging.info(f"  當前: {current_value:.2f} USDT")
+            logging.info(f"  盈虧: {change:+.4f} USDT ({percent:+.2f}%)")
             logging.info(f"  ├─ USDT: {current_assets['USDT']:.2f}")
-            logging.info(f"  └─ USDC: {current_assets['USDC']:.4f} (≈ {current_assets['USDC'] * current_price:.2f} USDT)")
+            logging.info(f"  └─ USDC: {current_assets['USDC']:.4f}")
             logging.info("")
         
         logging.info("📈 策略統計:")
         logging.info(f"  累計套利: {self.total_trades} 次")
-        logging.info(f"  已實現利潤: {self.total_profit:.6f} USDT")
-        
-        active_grids = [g for g in self.grids.values() if g.active]
-        logging.info(f"  活躍網格: {len(active_grids)} 個")
+        logging.info(f"  已實現利潤: {self.total_profit:+.6f} USDT")
         logging.info("")
         
-        if active_grids and current_price:
-            logging.info("📋 網格詳情:")
-            total_unrealized = 0
+        if self.current_grid and self.current_grid.active:
+            grid = self.current_grid
+            logging.info("📋 當前網格:")
+            logging.info(f"  {grid.id} @ ${grid.open_price:.4f}")
+            logging.info(f"  買入價: ${grid.buy_price:.4f} | 賣出價: ${grid.sell_price:.4f}")
             
-            for grid in active_grids:
-                summary = grid.get_summary(current_price)
-                total_unrealized += summary['unrealized']
-                
-                logging.info(f"  {grid.id} @ ${grid.open_price:.4f}:")
-                logging.info(f"    持倉: {summary['positions']}")
-                logging.info(f"    套利: {summary['trades']} 次")
-                logging.info(f"    已實現: {summary['realized']:.6f} USDT")
-                logging.info(f"    未實現: {summary['unrealized']:+.6f} USDT")
+            if grid.position:
+                logging.info(f"  持倉: {grid.position['quantity']:.4f} USDC @ ${grid.position['buy_price']:.4f}")
+            else:
+                logging.info(f"  持倉: 無")
             
-            logging.info("")
-            logging.info(f"  總未實現盈虧: {total_unrealized:+.6f} USDT")
+            if grid.pending_order:
+                logging.info(f"  掛單: {grid.pending_order['side']} {grid.pending_order['quantity']:.4f}")
+            
+            logging.info(f"  套利: {grid.trade_count} 次 | 利潤: {grid.total_profit:+.6f} USDT")
         else:
-            logging.info("  當前無活躍網格")
+            logging.info("當前無活躍網格")
         
         print_separator()
 
@@ -727,7 +533,7 @@ def should_create_grid(last_create_minute):
     return False, last_create_minute
 
 def main():
-    logging.info("🚀 啟動 USDC/USDT 移動網格交易機器人...")
+    logging.info("🚀 啟動 USDC/USDT 固定網格套利機器人...")
     
     client = MEXCClient(API_KEY, SECRET_KEY)
     
@@ -745,12 +551,15 @@ def main():
     usdc = client.get_balance('USDC')
     logging.info(f"💼 帳戶資產: USDT {usdt:.2f} | USDC {usdc:.4f}")
     
-    if usdt < MIN_CAPITAL_TO_OPEN:
-        logging.error(f"❌ USDT 不足！需要至少 {MIN_CAPITAL_TO_OPEN} USDT")
+    total_assets = usdt + (usdc * test_price)
+    required_capital = total_assets * CAPITAL_PERCENT
+    
+    if required_capital < 5:
+        logging.error(f"❌ 資金不足！需要至少 10 USDT 總資產")
         return
     
     # 創建機器人
-    bot = USDCUSDTGridBot(client)
+    bot = FixedGridBot(client)
     
     last_create_minute = -1
     last_display_time = time.time()
@@ -760,14 +569,13 @@ def main():
             # 檢查是否創建新網格
             should_create, new_minute = should_create_grid(last_create_minute)
             if should_create:
-                active_grids = [g for g in bot.grids.values() if g.active]
-                if len(active_grids) == 0 or not ENABLE_SCHEDULE:
+                if not bot.current_grid or not bot.current_grid.active:
                     logging.info("⏰ 開單時間到，嘗試創建新網格...")
                     bot.create_grid()
                     last_create_minute = new_minute
             
             # 更新網格
-            bot.update_grids()
+            bot.update_grid()
             
             # 顯示狀態
             if time.time() - last_display_time >= DISPLAY_STATUS_INTERVAL:
@@ -777,12 +585,11 @@ def main():
             time.sleep(CHECK_PRICE_INTERVAL)
     
     except KeyboardInterrupt:
-        logging.info("⛔ 停止中，正在關閉所有網格...")
-        current_price = client.get_price(SYMBOL)
+        logging.info("⛔ 停止中...")
         
-        active_grids = [gid for gid, g in bot.grids.items() if g.active]
-        for grid_id in active_grids:
-            bot.close_grid(grid_id, current_price)
+        if bot.current_grid and bot.current_grid.active:
+            current_price = client.get_price(SYMBOL)
+            bot.close_grid(bot.current_grid, current_price)
         
         final_assets = bot._get_total_assets()
         if final_assets and bot.initial_assets:
@@ -794,7 +601,7 @@ def main():
             percent = (change / bot.initial_assets['total'] * 100) if bot.initial_assets['total'] > 0 else 0
             logging.info(f"  總盈虧: {change:+.4f} USDT ({percent:+.2f}%)")
             logging.info(f"  總套利: {bot.total_trades} 次")
-            logging.info(f"  已實現利潤: {bot.total_profit:.6f} USDT")
+            logging.info(f"  已實現利潤: {bot.total_profit:+.6f} USDT")
             print_separator()
         
         logging.info("👋 程序已退出")
