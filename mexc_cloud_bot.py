@@ -14,7 +14,7 @@ API_KEY = "mx0vglaUUDV1VP6KTU"
 SECRET_KEY = "0e3a3cb6b0e24b0fbdf82d0c1e15c4b1"
 
 # 交易對
-SYMBOL = "SOLUSDT"
+SYMBOL = "XRPUSDT"
 
 # 網格設定
 GRID_COUNT = 10  # 網格數量（0-10 共 11 層）
