@@ -497,7 +497,20 @@ class USDCUSDTGridBot:
             return False
         
         # 獲取持倉數量
-        quantity = level.positions[0]['quantity']
+        recorded_quantity = level.positions[0]['quantity']
+        
+        # 查詢實際 USDC 餘額（避免 Oversold）
+        actual_balance = self.client.get_balance('USDC')
+        
+        # 使用較小的數量，並預留 0.1% 的餘量
+        quantity = min(recorded_quantity, actual_balance) * 0.999
+        quantity = round(quantity, 4)
+        
+        if quantity < 1.01:  # MEXC 最小賣出數量
+            logging.error(f"數量不足: 記錄 {recorded_quantity:.4f}, 實際 {actual_balance:.4f}, 可賣 {quantity:.4f}")
+            return False
+        
+        logging.info(f"持倉記錄: {recorded_quantity:.4f} USDC, 實際餘額: {actual_balance:.4f} USDC, 賣出: {quantity:.4f} USDC")
         
         # 限價單價格：稍低於市價，加速成交
         limit_price = round(price - PRICE_OFFSET, 4)
