@@ -50,9 +50,9 @@ GRID_TICK = 0.0001  # 每個 TICK 的價格間距
 CAPITAL_PER_LEVEL = 5.0  # 每層資金 5 USDT
 MIN_CAPITAL_TO_OPEN = 10.0  # 開新網格最少需要 10 USDT
 
-# 時間設定
-CHECK_PRICE_INTERVAL = 0.5  # 檢查價格間隔（秒）- 快速響應
-DISPLAY_STATUS_INTERVAL = 60  # 顯示狀態間隔（秒）
+# 訂單設定
+ORDER_TIMEOUT = 5  # 訂單超時（秒）- Limit Order 如果 5 秒沒成交就取消重掛
+PRICE_OFFSET = 0.0001  # 價格偏移 - 買入加價，賣出減價，加速成交
 
 # 開單時間控制
 ENABLE_SCHEDULE = True  # 是否啟用定時開單
@@ -146,7 +146,35 @@ class MEXCClient:
                     return free
         return 0
     
-    def place_market_order(self, symbol, side, amount_usdt=None, quantity=None):
+    def place_limit_order(self, symbol, side, quantity, price):
+        """下限價單"""
+        params = {
+            'symbol': symbol,
+            'side': side,
+            'type': 'LIMIT',
+            'timeInForce': 'GTC',
+            'quantity': str(quantity),
+            'price': str(price)
+        }
+        
+        if DEBUG_MODE:
+            logging.debug(f"限價單參數: {params}")
+        
+        result = self._request('POST', "/api/v3/order", params)
+        
+        if result and 'orderId' in result:
+            logging.info(f"✓ 限價單已掛出: {side} {quantity} @ ${price}")
+        else:
+            logging.error(f"✗ 限價單失敗: {result}")
+        
+        return result
+    
+    def cancel_order(self, symbol, order_id):
+        """取消訂單"""
+        result = self._request('DELETE', "/api/v3/order", {'symbol': symbol, 'orderId': order_id})
+        if result:
+            logging.info(f"✓ 訂單已取消: {order_id}")
+        return result
         """
         下市價單 - 嘗試兩種方式
         方式 A: quoteOrderQty (指定花費的 USDT)
@@ -411,34 +439,53 @@ class USDCUSDTGridBot:
         # 計算買入數量
         quantity = round(CAPITAL_PER_LEVEL / price, 4)
         
-        logging.info(f"🛒 買入: {CAPITAL_PER_LEVEL:.2f} USDT @ ${price:.4f} (約 {quantity:.4f} USDC)")
+        # 限價單價格：稍高於市價，加速成交
+        limit_price = round(price + PRICE_OFFSET, 4)
         
-        # 下市價單
-        result = self.client.place_market_order(
+        logging.info(f"🛒 買入: {CAPITAL_PER_LEVEL:.2f} USDT @ ${limit_price:.4f} (市價 ${price:.4f})")
+        
+        # 下限價單
+        result = self.client.place_limit_order(
             SYMBOL, 
             'BUY', 
-            amount_usdt=CAPITAL_PER_LEVEL,
-            quantity=quantity
+            quantity,
+            limit_price
         )
         
         if not result or 'orderId' not in result:
             logging.error(f"買入失敗: {result}")
             return False
         
-        # 查詢訂單詳情
-        time.sleep(0.5)
-        order_info = self.client.query_order(SYMBOL, result['orderId'])
+        order_id = result['orderId']
         
-        if order_info and order_info.get('status') == 'FILLED':
-            filled_qty = float(order_info.get('executedQty', quantity))
-            filled_price = float(order_info.get('cummulativeQuoteQty', CAPITAL_PER_LEVEL)) / filled_qty
+        # 等待成交，超時則取消重掛
+        start_time = time.time()
+        while time.time() - start_time < ORDER_TIMEOUT:
+            time.sleep(0.5)
+            order_info = self.client.query_order(SYMBOL, order_id)
             
-            level.add_position(filled_qty, filled_price, time.time())
-            logging.info(f"✓ 買入成功: {filled_qty:.4f} USDC @ ${filled_price:.4f}")
-            return True
-        else:
-            logging.error(f"訂單未成交: {order_info.get('status') if order_info else 'Unknown'}")
-            return False
+            if not order_info:
+                logging.error("查詢訂單失敗")
+                return False
+            
+            status = order_info.get('status')
+            
+            if status == 'FILLED':
+                filled_qty = float(order_info.get('executedQty', quantity))
+                filled_price = float(order_info.get('cummulativeQuoteQty', CAPITAL_PER_LEVEL)) / filled_qty
+                
+                level.add_position(filled_qty, filled_price, time.time())
+                logging.info(f"✓ 買入成交: {filled_qty:.4f} USDC @ ${filled_price:.4f}")
+                return True
+            
+            elif status in ['CANCELED', 'REJECTED', 'EXPIRED', 'FAILED']:
+                logging.error(f"訂單失敗: {status}")
+                return False
+        
+        # 超時，取消訂單
+        logging.warning(f"訂單超時，取消重掛...")
+        self.client.cancel_order(SYMBOL, order_id)
+        return False
     
     def _sell_at_level(self, grid, level, price):
         """在指定層級賣出"""
@@ -448,43 +495,64 @@ class USDCUSDTGridBot:
         # 獲取持倉數量
         quantity = level.positions[0]['quantity']
         
-        logging.info(f"💰 賣出: {quantity:.4f} USDC @ ${price:.4f}")
+        # 限價單價格：稍低於市價，加速成交
+        limit_price = round(price - PRICE_OFFSET, 4)
         
-        # 下市價單
-        result = self.client.place_market_order(
+        logging.info(f"💰 賣出: {quantity:.4f} USDC @ ${limit_price:.4f} (市價 ${price:.4f})")
+        
+        # 下限價單
+        result = self.client.place_limit_order(
             SYMBOL,
             'SELL',
-            quantity=quantity
+            quantity,
+            limit_price
         )
         
         if not result or 'orderId' not in result:
             logging.error(f"❌ 賣出失敗!")
             logging.error(f"   交易對: {SYMBOL}")
             logging.error(f"   數量: {quantity:.4f} USDC")
-            logging.error(f"   價格: ${price:.4f}")
+            logging.error(f"   限價: ${limit_price:.4f}")
+            logging.error(f"   市價: ${price:.4f}")
             logging.error(f"   API 回應: {result}")
             return False
         
-        # 查詢訂單詳情
-        time.sleep(0.5)
-        order_info = self.client.query_order(SYMBOL, result['orderId'])
+        order_id = result['orderId']
         
-        if order_info and order_info.get('status') == 'FILLED':
-            filled_price = float(order_info.get('cummulativeQuoteQty', 0)) / quantity
+        # 等待成交，超時則取消重掛
+        start_time = time.time()
+        while time.time() - start_time < ORDER_TIMEOUT:
+            time.sleep(0.5)
+            order_info = self.client.query_order(SYMBOL, order_id)
             
-            profit = level.sell_position(filled_price)
-            grid.total_profit += profit
-            grid.total_trades += 1
-            self.total_profit += profit
-            self.total_trades += 1
+            if not order_info:
+                logging.error("查詢訂單失敗")
+                self.client.cancel_order(SYMBOL, order_id)
+                return False
             
-            logging.info(f"✓ 賣出成功: 利潤 {profit:.6f} USDT")
-            return True
-        else:
-            status = order_info.get('status') if order_info else 'Unknown'
-            logging.error(f"❌ 訂單未成交: {status}")
-            logging.error(f"   訂單資訊: {order_info}")
-            return False
+            status = order_info.get('status')
+            
+            if status == 'FILLED':
+                filled_price = float(order_info.get('cummulativeQuoteQty', 0)) / quantity
+                
+                profit = level.sell_position(filled_price)
+                grid.total_profit += profit
+                grid.total_trades += 1
+                self.total_profit += profit
+                self.total_trades += 1
+                
+                logging.info(f"✓ 賣出成交: 利潤 {profit:.6f} USDT")
+                return True
+            
+            elif status in ['CANCELED', 'REJECTED', 'EXPIRED', 'FAILED']:
+                logging.error(f"❌ 訂單失敗: {status}")
+                logging.error(f"   訂單資訊: {order_info}")
+                return False
+        
+        # 超時，取消訂單
+        logging.warning(f"訂單超時，取消...")
+        self.client.cancel_order(SYMBOL, order_id)
+        return False
     
     def update_grids(self):
         """更新所有網格"""
