@@ -54,7 +54,7 @@ DISPLAY_STATUS_INTERVAL = 60  # 顯示狀態間隔（秒）
 
 # 開單時間控制
 ENABLE_SCHEDULE = True
-SCHEDULE_MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+SCHEDULE_MINUTES = list(range(60))  # 每分鐘開單：0, 1, 2, ..., 59
 
 # 訂單設定
 ORDER_TIMEOUT = 10  # 限價單等待時間（秒）
