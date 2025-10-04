@@ -50,6 +50,10 @@ GRID_TICK = 0.0001  # 每個 TICK 的價格間距
 CAPITAL_PER_LEVEL = 5.0  # 每層資金 5 USDT
 MIN_CAPITAL_TO_OPEN = 10.0  # 開新網格最少需要 10 USDT
 
+# 時間設定
+CHECK_PRICE_INTERVAL = 0.5  # 檢查價格間隔（秒）- 快速響應
+DISPLAY_STATUS_INTERVAL = 60  # 顯示狀態間隔（秒）
+
 # 訂單設定
 ORDER_TIMEOUT = 5  # 訂單超時（秒）- Limit Order 如果 5 秒沒成交就取消重掛
 PRICE_OFFSET = 0.0001  # 價格偏移 - 買入加價，賣出減價，加速成交
