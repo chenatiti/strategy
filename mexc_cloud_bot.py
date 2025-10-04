@@ -154,9 +154,15 @@ class MEXCClient:
         """
         # 如果已經知道哪種方法可用，直接用
         if self.market_order_method == 'quoteOrderQty' and amount_usdt:
-            return self._place_market_order_quote(symbol, side, amount_usdt)
+            result = self._place_market_order_quote(symbol, side, amount_usdt)
+            if not result:
+                logging.error(f"市價單失敗 (quoteOrderQty): side={side}, amount={amount_usdt}")
+            return result
         elif self.market_order_method == 'quantity' and quantity:
-            return self._place_market_order_quantity(symbol, side, quantity)
+            result = self._place_market_order_quantity(symbol, side, quantity)
+            if not result:
+                logging.error(f"市價單失敗 (quantity): side={side}, qty={quantity}")
+            return result
         
         # 如果還不知道，先嘗試 quoteOrderQty
         if amount_usdt:
@@ -174,7 +180,9 @@ class MEXCClient:
                 if result:
                     self.market_order_method = 'quantity'
                     logging.info("✓ 方式 B 成功！之後都用這個方法")
-                return result
+                    return result
+                else:
+                    logging.error(f"兩種方式都失敗！檢查 API 回應")
         
         return None
     
@@ -450,7 +458,11 @@ class USDCUSDTGridBot:
         )
         
         if not result or 'orderId' not in result:
-            logging.error(f"賣出失敗: {result}")
+            logging.error(f"❌ 賣出失敗!")
+            logging.error(f"   交易對: {SYMBOL}")
+            logging.error(f"   數量: {quantity:.4f} USDC")
+            logging.error(f"   價格: ${price:.4f}")
+            logging.error(f"   API 回應: {result}")
             return False
         
         # 查詢訂單詳情
@@ -469,7 +481,9 @@ class USDCUSDTGridBot:
             logging.info(f"✓ 賣出成功: 利潤 {profit:.6f} USDT")
             return True
         else:
-            logging.error(f"訂單未成交: {order_info.get('status') if order_info else 'Unknown'}")
+            status = order_info.get('status') if order_info else 'Unknown'
+            logging.error(f"❌ 訂單未成交: {status}")
+            logging.error(f"   訂單資訊: {order_info}")
             return False
     
     def update_grids(self):
