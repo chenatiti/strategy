@@ -366,11 +366,11 @@ class FixedGridBot:
             }
     
     def _try_buy(self, grid, current_price):
-        """嘗試買入（循環）"""
+        """嘗試買入（循環）- 實際發送 SELL 指令"""
         if grid.position:
             return False
         
-        if grid.pending_order and grid.pending_order['side'] == 'BUY':
+        if grid.pending_order and grid.pending_order['side'] == 'SELL':  # 改成 SELL
             return False
         
         # 精確匹配買入價 (必須是震盪區間的最低價)
@@ -383,12 +383,13 @@ class FixedGridBot:
         logging.info(f"🔄 循環買入: 價格 ${current_price:.4f} (區間最低價)")
         logging.info(f"🛒 市價買入: 使用 {usdt_amount:.2f} USDT")
         
-        result = self.client.place_market_order(SYMBOL, 'BUY', usdt_amount)
+        # ⚠️ 注意：這裡發送 SELL，因為交易所行為相反
+        result = self.client.place_market_order(SYMBOL, 'SELL', usdt_amount)
         
         if result and 'orderId' in result:
             grid.pending_order = {
                 'order_id': result['orderId'],
-                'side': 'BUY',
+                'side': 'SELL',  # 記錄為 SELL
                 'created_time': time.time(),
                 'quantity': usdt_amount
             }
@@ -448,7 +449,8 @@ class FixedGridBot:
             side = grid.pending_order['side']
             filled_qty = float(order_info.get('executedQty', grid.pending_order['quantity']))
             
-            if side == 'BUY':
+            # 注意：side 已經是反轉後的值 (SELL=買入, BUY=賣出)
+            if side == 'SELL':  # 實際是買入
                 filled_value = float(order_info.get('cummulativeQuoteQty', 0))
                 filled_price = filled_value / filled_qty if filled_qty > 0 else grid.buy_price
                 
@@ -461,7 +463,7 @@ class FixedGridBot:
                 
                 if not grid.initial_buy_done:
                     grid.initial_buy_done = True
-            else:
+            else:  # side == 'BUY' - 實際是賣出
                 if grid.position:
                     filled_value = float(order_info.get('cummulativeQuoteQty', 0))
                     filled_price = filled_value / filled_qty if filled_qty > 0 else grid.sell_price
