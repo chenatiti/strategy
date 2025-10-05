@@ -144,8 +144,14 @@ class MEXCClient:
             'symbol': symbol,
             'side': side,
             'type': 'MARKET',
-            'quantity': str(quantity)
         }
+        
+        # 買入時用 quoteOrderQty (指定花多少 USDT)
+        # 賣出時用 quantity (指定賣多少 USDC)
+        if side == 'BUY':
+            params['quoteOrderQty'] = str(quantity)
+        else:
+            params['quantity'] = str(quantity)
         
         result = self._request('POST', "/api/v3/order", params)
         
@@ -337,22 +343,26 @@ class FixedGridBot:
         if grid.pending_order and grid.pending_order['side'] == 'BUY':
             return
         
-        # 精確匹配買入價
+        # 精確匹配買入價 (必須是震盪區間的最低價)
         if current_price != grid.buy_price:
+            if DEBUG_MODE:
+                logging.debug(f"等待買入: 當前 ${current_price:.4f}, 目標 ${grid.buy_price:.4f}")
             return
         
-        quantity = round(grid.capital / current_price, 2)
+        # 買入時用 USDT 金額 (quoteOrderQty)
+        usdt_amount = round(grid.capital, 2)
         
-        logging.info(f"🛒 市價買入: {quantity:.2f} USDC (約 {grid.capital:.2f} USDT)")
+        logging.info(f"🎯 價格到達 ${current_price:.4f} (區間最低價)，執行買入！")
+        logging.info(f"🛒 市價買入: 使用 {usdt_amount:.2f} USDT 購買 USDC")
         
-        result = self.client.place_market_order(SYMBOL, 'BUY', quantity)
+        result = self.client.place_market_order(SYMBOL, 'BUY', usdt_amount)
         
         if result and 'orderId' in result:
             grid.pending_order = {
                 'order_id': result['orderId'],
                 'side': 'BUY',
                 'created_time': time.time(),
-                'quantity': quantity
+                'quantity': usdt_amount  # 記錄使用的 USDT 金額
             }
     
     def _try_buy(self, grid, current_price):
@@ -363,22 +373,24 @@ class FixedGridBot:
         if grid.pending_order and grid.pending_order['side'] == 'BUY':
             return False
         
-        # 精確匹配
+        # 精確匹配買入價 (必須是震盪區間的最低價)
         if current_price != grid.buy_price:
             return False
         
-        quantity = round(grid.capital / current_price, 2)
+        # 買入時用 USDT 金額
+        usdt_amount = round(grid.capital, 2)
         
-        logging.info(f"🛒 市價買入: {quantity:.2f} USDC")
+        logging.info(f"🔄 循環買入: 價格 ${current_price:.4f} (區間最低價)")
+        logging.info(f"🛒 市價買入: 使用 {usdt_amount:.2f} USDT")
         
-        result = self.client.place_market_order(SYMBOL, 'BUY', quantity)
+        result = self.client.place_market_order(SYMBOL, 'BUY', usdt_amount)
         
         if result and 'orderId' in result:
             grid.pending_order = {
                 'order_id': result['orderId'],
                 'side': 'BUY',
                 'created_time': time.time(),
-                'quantity': quantity
+                'quantity': usdt_amount
             }
             return True
         
