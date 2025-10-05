@@ -327,9 +327,11 @@ class FixedGridBot:
         print_separator()
         logging.info(f"📊 創建網格 {grid_id}")
         logging.info(f"開單價格: ${self.target_open_price:.4f}")
+        logging.info(f"開單前總資產: {current_assets['total']:.2f} USDT")
         logging.info(f"開單資金: {capital:.2f} USDT ({CAPITAL_PERCENT * 100}%)")
         
         grid = FixedGrid(grid_id, self.target_open_price, capital)
+        grid.initial_total_assets = current_assets['total']  # 記錄初始資產
         
         logging.info(f"買入價格: ${grid.buy_price:.4f}")
         logging.info(f"賣出價格: ${grid.sell_price:.4f}")
@@ -591,17 +593,19 @@ class FixedGridBot:
             grid = self.current_grid
             logging.info("📋 當前網格:")
             logging.info(f"  {grid.id} @ ${grid.open_price:.4f}")
+            logging.info(f"  開單前資產: {grid.initial_total_assets:.2f} USDT")
             logging.info(f"  買入價: ${grid.buy_price:.4f} | 賣出價: ${grid.sell_price:.4f}")
             
             if grid.position:
-                logging.info(f"  持倉: {grid.position['quantity']:.4f} USDC @ ${grid.position['buy_price']:.4f}")
+                logging.info(f"  持倉: {grid.position['quantity']:.2f} USDC @ ${grid.position['buy_price']:.4f}")
             else:
                 logging.info(f"  持倉: 無")
             
             if grid.pending_order:
-                logging.info(f"  掛單: {grid.pending_order['side']} {grid.pending_order['quantity']:.4f}")
+                logging.info(f"  掛單: {grid.pending_order['side']} {grid.pending_order['quantity']:.2f}")
             
-            logging.info(f"  套利: {grid.trade_count} 次 | 利潤: {grid.total_profit:+.6f} USDT")
+            logging.info(f"  套利次數: {grid.trade_count} 次")
+            logging.info(f"  已實現利潤: {grid.total_profit:+.6f} USDT")
         else:
             logging.info("當前無活躍網格")
         
