@@ -139,24 +139,34 @@ class MEXCClient:
         return 0
     
     def place_market_order(self, symbol, side, quantity):
-        """下市價單"""
+        """下市價單 - 負負得正版本
+        
+        因為交易所行為相反：
+        - 想買入 → 發送 side='SELL' + quoteOrderQty (花USDT買)
+        - 想賣出 → 發送 side='BUY' + quantity (賣USDC)
+        
+        但參數不變（還是按照正常邏輯）
+        """
         params = {
             'symbol': symbol,
             'side': side,
             'type': 'MARKET',
         }
         
-        # 買入時用 quoteOrderQty (指定花多少 USDT)
-        # 賣出時用 quantity (指定賣多少 USDC)
-        if side == 'BUY':
+        # 參數邏輯維持正常（不反轉）
+        # side='SELL' 時（實際想買入），傳 quoteOrderQty
+        # side='BUY' 時（實際想賣出），傳 quantity
+        if side == 'SELL':
             params['quoteOrderQty'] = str(quantity)
-        else:
+            logging.info(f"✓ 發送 SELL (實際買入): quoteOrderQty={quantity} USDT")
+        else:  # BUY
             params['quantity'] = str(quantity)
+            logging.info(f"✓ 發送 BUY (實際賣出): quantity={quantity} USDC")
         
         result = self._request('POST', "/api/v3/order", params)
         
         if result and 'orderId' in result:
-            logging.info(f"✓ 市價單提交: {side} {quantity}")
+            logging.info(f"  訂單ID: {result['orderId']}")
         else:
             logging.error(f"✗ 市價單失敗: {result}")
         
@@ -366,30 +376,30 @@ class FixedGridBot:
             }
     
     def _try_buy(self, grid, current_price):
-        """嘗試買入（循環）- 實際發送 SELL 指令"""
+        """嘗試買入（循環）- 發送 SELL 指令（負負得正）"""
         if grid.position:
             return False
         
-        if grid.pending_order and grid.pending_order['side'] == 'SELL':  # 改成 SELL
+        if grid.pending_order and grid.pending_order['side'] == 'SELL':
             return False
         
         # 精確匹配買入價 (必須是震盪區間的最低價)
         if current_price != grid.buy_price:
             return False
         
-        # 買入時用 USDT 金額
+        # 買入時傳入 USDT 金額
         usdt_amount = round(grid.capital, 2)
         
         logging.info(f"🔄 循環買入: 價格 ${current_price:.4f} (區間最低價)")
-        logging.info(f"🛒 市價買入: 使用 {usdt_amount:.2f} USDT")
+        logging.info(f"⚠️  發送 SELL 指令（負負得正）")
         
-        # ⚠️ 注意：這裡發送 SELL，因為交易所行為相反
+        # 負負得正：發送 SELL
         result = self.client.place_market_order(SYMBOL, 'SELL', usdt_amount)
         
         if result and 'orderId' in result:
             grid.pending_order = {
                 'order_id': result['orderId'],
-                'side': 'SELL',  # 記錄為 SELL
+                'side': 'SELL',
                 'created_time': time.time(),
                 'quantity': usdt_amount
             }
@@ -433,7 +443,7 @@ class FixedGridBot:
         return False
     
     def _check_pending_order(self, grid):
-        """檢查掛單狀態"""
+        """檢查掛單狀態 - 負負得正邏輯"""
         if not grid.pending_order:
             return
         
@@ -449,8 +459,8 @@ class FixedGridBot:
             side = grid.pending_order['side']
             filled_qty = float(order_info.get('executedQty', grid.pending_order['quantity']))
             
-            # 注意：side 已經是反轉後的值 (SELL=買入, BUY=賣出)
-            if side == 'SELL':  # 實際是買入
+            # 負負得正：SELL=買入, BUY=賣出
+            if side == 'SELL':  # 我們發送 SELL，實際是買入
                 filled_value = float(order_info.get('cummulativeQuoteQty', 0))
                 filled_price = filled_value / filled_qty if filled_qty > 0 else grid.buy_price
                 
@@ -463,7 +473,7 @@ class FixedGridBot:
                 
                 if not grid.initial_buy_done:
                     grid.initial_buy_done = True
-            else:  # side == 'BUY' - 實際是賣出
+            else:  # side == 'BUY' - 我們發送 BUY，實際是賣出
                 if grid.position:
                     filled_value = float(order_info.get('cummulativeQuoteQty', 0))
                     filled_price = filled_value / filled_qty if filled_qty > 0 else grid.sell_price
