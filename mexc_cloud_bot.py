@@ -4,6 +4,15 @@
 import subprocess
 import sys
 
+# 強制無緩衝輸出
+os.environ['PYTHONUNBUFFERED'] = '1'
+sys.stdout.flush()
+sys.stderr.flush()
+
+print("=" * 80, flush=True)
+print("🚀 程式啟動中...", flush=True)
+print("=" * 80, flush=True)
+
 def install_package(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
