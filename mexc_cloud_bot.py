@@ -56,6 +56,9 @@ DISPLAY_STATUS_INTERVAL = 60  # 顯示狀態間隔（秒）
 ENABLE_SCHEDULE = True
 SCHEDULE_MINUTES = list(range(60))  # 每分鐘開單：0, 1, 2, ..., 59
 
+# 開單前觀察
+OBSERVATION_SECONDS = 10  # 開單前觀察 10 秒
+
 # 訂單設定
 ORDER_TIMEOUT = 10  # 限價單等待時間（秒）
 
@@ -204,6 +207,10 @@ class FixedGridBot:
         self.total_trades = 0
         self.initial_assets = self._get_total_assets()
         
+        # 觀察模式
+        self.target_open_price = None  # 目標開單價（觀察到的最低價）
+        self.observation_time = None   # 最後觀察時間
+        
         self._display_startup()
     
     def _get_total_assets(self):
@@ -244,54 +251,102 @@ class FixedGridBot:
             logging.info(f"  查價間隔: {CHECK_PRICE_INTERVAL} 秒")
         print_separator()
     
-    def create_grid(self):
-        """創建新網格"""
-        if self.current_grid and self.current_grid.active:
-            logging.warning("已有活躍網格，跳過開單")
+    def _observe_price(self):
+        """觀察價格 10 秒，找出最低價"""
+        logging.info(f"🔍 開始觀察價格 {OBSERVATION_SECONDS} 秒...")
+        
+        prices = []
+        start_time = time.time()
+        
+        while time.time() - start_time < OBSERVATION_SECONDS:
+            price = self.client.get_price(SYMBOL)
+            if price:
+                prices.append(price)
+                if DEBUG_MODE:
+                    logging.debug(f"觀察: ${price:.4f}")
+            time.sleep(CHECK_PRICE_INTERVAL)
+        
+        if not prices:
+            logging.error("觀察期間無法獲取價格")
             return None
+        
+        min_price = min(prices)
+        max_price = max(prices)
+        
+        logging.info(f"觀察結果: 最低 ${min_price:.4f}, 最高 ${max_price:.4f}")
+        logging.info(f"設定目標開單價: ${min_price:.4f}")
+        
+        return min_price
+    
+    def try_observe(self):
+        """嘗試觀察（每分鐘一次）"""
+        if self.current_grid and self.current_grid.active:
+            return
+        
+        # 觀察 10 秒找最低價
+        min_price = self._observe_price()
+        
+        if min_price:
+            self.target_open_price = min_price
+            self.observation_time = time.time()
+            logging.info(f"⏳ 等待價格到達 ${self.target_open_price:.4f}...")
+    
+    def try_create_grid_at_target(self):
+        """在目標價格開網格"""
+        if self.current_grid and self.current_grid.active:
+            return
+        
+        if not self.target_open_price:
+            return
         
         current_price = self.client.get_price(SYMBOL)
         if not current_price:
-            logging.error("無法獲取當前價格")
-            return None
+            return
+        
+        # 檢查是否到達目標價
+        if current_price != self.target_open_price:
+            return
+        
+        logging.info(f"✓ 價格到達目標 ${self.target_open_price:.4f}，開始創建網格")
         
         # 計算開單資金
         current_assets = self._get_total_assets()
         if not current_assets:
             logging.error("無法獲取資產資訊")
-            return None
+            self.target_open_price = None
+            return
         
         capital = current_assets['total'] * CAPITAL_PERCENT
         
         if capital < 5:
             logging.error(f"資金不足: {capital:.2f} USDT")
-            return None
+            self.target_open_price = None
+            return
         
         self.grid_counter += 1
         grid_id = f"Grid_{self.grid_counter}"
         
         print_separator()
         logging.info(f"📊 創建網格 {grid_id}")
-        logging.info(f"開單價格: ${current_price:.4f}")
+        logging.info(f"開單價格: ${self.target_open_price:.4f}")
         logging.info(f"開單資金: {capital:.2f} USDT ({CAPITAL_PERCENT * 100}%)")
         
-        grid = FixedGrid(grid_id, current_price, capital)
+        grid = FixedGrid(grid_id, self.target_open_price, capital)
         
         logging.info(f"買入價格: ${grid.buy_price:.4f}")
         logging.info(f"賣出價格: ${grid.sell_price:.4f}")
         logging.info(f"關閉條件: < ${grid.lower_close:.4f} 或 > ${grid.upper_close:.4f}")
         logging.info("")
         
-        # 立即嘗試買入
+        # 立即買入
         if self._try_buy(grid, current_price):
             self.current_grid = grid
+            self.target_open_price = None
             logging.info(f"✓ 網格 {grid_id} 創建成功")
             print_separator()
-            return grid_id
         else:
             logging.error(f"✗ 網格 {grid_id} 創建失敗")
             print_separator()
-            return None
     
     def _try_buy(self, grid, current_price):
         """嘗試買入"""
@@ -540,16 +595,16 @@ class FixedGridBot:
         
         print_separator()
 
-def should_create_grid(last_create_minute):
-    """判斷是否該創建網格"""
+def should_observe(last_observe_minute):
+    """判斷是否該觀察（每分鐘一次）"""
     if not ENABLE_SCHEDULE:
-        return True, -1
+        return False, -1
     
     now = datetime.now()
-    if now.minute in SCHEDULE_MINUTES and now.minute != last_create_minute and now.second < 10:
+    if now.minute in SCHEDULE_MINUTES and now.minute != last_observe_minute and now.second < 10:
         return True, now.minute
     
-    return False, last_create_minute
+    return False, last_observe_minute
 
 def main():
     logging.info("🚀 啟動 USDC/USDT 固定網格套利機器人...")
@@ -580,18 +635,19 @@ def main():
     # 創建機器人
     bot = FixedGridBot(client)
     
-    last_create_minute = -1
+    last_observe_minute = -1
     last_display_time = time.time()
     
     try:
         while True:
-            # 檢查是否創建新網格
-            should_create, new_minute = should_create_grid(last_create_minute)
-            if should_create:
-                if not bot.current_grid or not bot.current_grid.active:
-                    logging.info("⏰ 開單時間到，嘗試創建新網格...")
-                    bot.create_grid()
-                    last_create_minute = new_minute
+            # 每分鐘觀察一次
+            should_obs, new_minute = should_observe(last_observe_minute)
+            if should_obs:
+                bot.try_observe()
+                last_observe_minute = new_minute
+            
+            # 持續嘗試在目標價開網格
+            bot.try_create_grid_at_target()
             
             # 更新網格
             bot.update_grid()
