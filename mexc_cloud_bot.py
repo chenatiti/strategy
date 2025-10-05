@@ -360,10 +360,10 @@ class FixedGridBot:
         if current_price != grid.buy_price:
             return False
         
-        # 計算買入數量
-        quantity = round(grid.capital / current_price, 4)
+        # 計算買入數量，精度改為 2 位小數
+        quantity = round(grid.capital / current_price, 2)
         
-        logging.info(f"🛒 市價買入: {quantity:.4f} USDC (約 {grid.capital:.2f} USDT)")
+        logging.info(f"🛒 市價買入: {quantity:.2f} USDC (約 {grid.capital:.2f} USDT)")
         
         result = self.client.place_market_order(SYMBOL, 'BUY', quantity)
         
@@ -395,15 +395,15 @@ class FixedGridBot:
         # 查詢實際 USDC 餘額
         actual_balance = self.client.get_balance('USDC')
         
-        # 使用較小值並預留 0.1% 避免 Oversold
+        # 使用較小值並預留 0.1% 避免 Oversold，精度改為 2 位小數
         quantity = min(grid.position['quantity'], actual_balance) * 0.999
-        quantity = round(quantity, 4)
+        quantity = round(quantity, 2)
         
         if quantity < 1.01:
-            logging.error(f"數量不足: {quantity:.4f} USDC")
+            logging.error(f"數量不足: {quantity:.2f} USDC")
             return False
         
-        logging.info(f"💰 市價賣出: {quantity:.4f} USDC")
+        logging.info(f"💰 市價賣出: {quantity:.2f} USDC")
         
         result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
         
@@ -511,9 +511,9 @@ class FixedGridBot:
         
         # 止損/止盈賣出持倉（市價）
         if grid.position:
-            quantity = round(grid.position['quantity'] * 0.999, 4)
+            quantity = round(grid.position['quantity'] * 0.999, 2)
             
-            logging.info(f"清倉持倉: {quantity:.4f} USDC (市價)")
+            logging.info(f"清倉持倉: {quantity:.2f} USDC (市價)")
             result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
             
             if result and 'orderId' in result:
@@ -536,7 +536,7 @@ class FixedGridBot:
         
         if remaining_usdc > 0.01:
             logging.info(f"清空剩餘 USDC: {remaining_usdc:.4f}")
-            quantity = round(remaining_usdc * 0.999, 4)
+            quantity = round(remaining_usdc * 0.999, 2)
             
             result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
             
