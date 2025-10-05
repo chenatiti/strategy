@@ -666,4 +666,4 @@ def main():
         logging.error("❌ API 連接失敗")
         return
     
-    logging.
+    logging.info(f"✓ API 連接成功，{SYMBOL} 當前價格: ${test_price:.4f}")
