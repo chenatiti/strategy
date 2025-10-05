@@ -171,20 +171,18 @@ class MEXCClient:
 
 class FixedGrid:
     """單個固定網格"""
-    def __init__(self, grid_id, center_price, capital):
+    def __init__(self, grid_id, open_price, capital):
         self.id = grid_id
-        self.center_price = round(center_price, 4)
+        self.open_price = round(open_price, 4)
         self.capital = capital
         self.created_time = datetime.now()
         self.active = True
         
-        # 修正：買入價應該比中心價低，賣出價應該比中心價高
-        self.buy_price = round(center_price - GRID_TICK, 4)  # 在更低價買入
-        self.sell_price = round(center_price + GRID_TICK, 4)  # 在更高價賣出
-        
-        # 止損止盈價格
-        self.upper_close = round(center_price + 2 * GRID_TICK, 4)  # 價格過高時止盈
-        self.lower_close = round(center_price - 2 * GRID_TICK, 4)  # 價格過低時止損
+        # 計算網格價格
+        self.buy_price = self.open_price
+        self.sell_price = round(self.open_price + GRID_TICK, 4)
+        self.upper_close = round(self.open_price + 2 * GRID_TICK, 4)
+        self.lower_close = round(self.open_price - GRID_TICK, 4)
         
         # 狀態
         self.position = None  # {'quantity': float, 'buy_price': float, 'buy_time': float}
@@ -208,8 +206,8 @@ class FixedGridBot:
         self.initial_assets = self._get_total_assets()
         
         # 觀察模式
-        self.target_center_price = None  # 目標中心價
-        self.observation_time = None     # 最後觀察時間
+        self.target_open_price = None  # 目標開單價（觀察到的最低價）
+        self.observation_time = None   # 最後觀察時間
         
         self._display_startup()
     
@@ -252,7 +250,7 @@ class FixedGridBot:
         print_separator()
     
     def _observe_price(self):
-        """觀察價格找出平均價作為中心價"""
+        """觀察價格 10 秒，找出最低價"""
         logging.info(f"🔍 開始觀察價格 {OBSERVATION_SECONDS} 秒...")
         
         prices = []
@@ -272,53 +270,55 @@ class FixedGridBot:
         
         min_price = min(prices)
         max_price = max(prices)
-        avg_price = sum(prices) / len(prices)
         
-        # 使用平均價作為中心價
-        center_price = round(avg_price, 4)
+        logging.info(f"觀察結果: 最低 ${min_price:.4f}, 最高 ${max_price:.4f}")
+        logging.info(f"設定目標開單價: ${min_price:.4f}")
         
-        logging.info(f"觀察結果: 最低 ${min_price:.4f}, 最高 ${max_price:.4f}, 平均 ${avg_price:.4f}")
-        logging.info(f"設定中心價: ${center_price:.4f}")
-        
-        return center_price
+        return min_price
     
     def try_observe(self):
         """嘗試觀察（每分鐘一次）"""
         if self.current_grid and self.current_grid.active:
             return
         
-        # 觀察找出中心價
-        center_price = self._observe_price()
+        # 觀察 10 秒找最低價
+        min_price = self._observe_price()
         
-        if center_price:
-            self.target_center_price = center_price
+        if min_price:
+            self.target_open_price = min_price
             self.observation_time = time.time()
-            
-            # 立即創建網格
-            self._create_grid_now()
+            logging.info(f"⏳ 等待價格到達 ${self.target_open_price:.4f}...")
     
-    def _create_grid_now(self):
-        """立即創建網格"""
+    def try_create_grid_at_target(self):
+        """在目標價格開網格"""
         if self.current_grid and self.current_grid.active:
             return
         
-        if not self.target_center_price:
+        if not self.target_open_price:
             return
         
-        logging.info(f"✓ 準備以中心價 ${self.target_center_price:.4f} 創建網格")
+        current_price = self.client.get_price(SYMBOL)
+        if not current_price:
+            return
+        
+        # 檢查是否到達目標價
+        if current_price != self.target_open_price:
+            return
+        
+        logging.info(f"✓ 價格到達目標 ${self.target_open_price:.4f}，開始創建網格")
         
         # 計算開單資金
         current_assets = self._get_total_assets()
         if not current_assets:
             logging.error("無法獲取資產資訊")
-            self.target_center_price = None
+            self.target_open_price = None
             return
         
         capital = current_assets['total'] * CAPITAL_PERCENT
         
         if capital < 5:
             logging.error(f"資金不足: {capital:.2f} USDT")
-            self.target_center_price = None
+            self.target_open_price = None
             return
         
         self.grid_counter += 1
@@ -326,29 +326,30 @@ class FixedGridBot:
         
         print_separator()
         logging.info(f"📊 創建網格 {grid_id}")
-        logging.info(f"中心價格: ${self.target_center_price:.4f}")
+        logging.info(f"開單價格: ${self.target_open_price:.4f}")
         logging.info(f"開單前總資產: {current_assets['total']:.2f} USDT")
         logging.info(f"開單資金: {capital:.2f} USDT ({CAPITAL_PERCENT * 100}%)")
         
-        grid = FixedGrid(grid_id, self.target_center_price, capital)
-        grid.initial_total_assets = current_assets['total']
+        grid = FixedGrid(grid_id, self.target_open_price, capital)
+        grid.initial_total_assets = current_assets['total']  # 記錄初始資產
         
-        logging.info(f"買入價格: ${grid.buy_price:.4f} (低於中心價)")
-        logging.info(f"賣出價格: ${grid.sell_price:.4f} (高於中心價)")
+        logging.info(f"買入價格: ${grid.buy_price:.4f}")
+        logging.info(f"賣出價格: ${grid.sell_price:.4f}")
         logging.info(f"關閉條件: < ${grid.lower_close:.4f} 或 > ${grid.upper_close:.4f}")
         logging.info("")
         
-        self.current_grid = grid
-        self.target_center_price = None
-        logging.info(f"✓ 網格 {grid_id} 創建成功，等待交易機會")
-        print_separator()
-    
-    def try_create_grid_at_target(self):
-        """這個函數不再使用，改用 _create_grid_now"""
-        pass
+        # 立即買入
+        if self._try_buy(grid, current_price):
+            self.current_grid = grid
+            self.target_open_price = None
+            logging.info(f"✓ 網格 {grid_id} 創建成功")
+            print_separator()
+        else:
+            logging.error(f"✗ 網格 {grid_id} 創建失敗")
+            print_separator()
     
     def _try_buy(self, grid, current_price):
-        """嘗試買入（當價格低於或等於買入價時）"""
+        """嘗試買入（市價單）"""
         # 如果已有持倉，不買
         if grid.position:
             return False
@@ -357,14 +358,14 @@ class FixedGridBot:
         if grid.pending_order and grid.pending_order['side'] == 'BUY':
             return False
         
-        # 修正：當價格 <= 買入價時買入（在低價買入）
-        if current_price > grid.buy_price:
+        # 只在買入價時買入
+        if current_price != grid.buy_price:
             return False
         
         # 計算買入數量，精度改為 2 位小數
         quantity = round(grid.capital / current_price, 2)
         
-        logging.info(f"🛒 市價買入: {quantity:.2f} USDC @ ${current_price:.4f} (買入價: ${grid.buy_price:.4f})")
+        logging.info(f"🛒 市價買入: {quantity:.2f} USDC (約 {grid.capital:.2f} USDT)")
         
         result = self.client.place_market_order(SYMBOL, 'BUY', quantity)
         
@@ -380,7 +381,7 @@ class FixedGridBot:
         return False
     
     def _try_sell(self, grid, current_price):
-        """嘗試賣出（當價格高於或等於賣出價時）"""
+        """嘗試賣出（市價單）"""
         # 如果沒持倉，不賣
         if not grid.position:
             return False
@@ -389,8 +390,8 @@ class FixedGridBot:
         if grid.pending_order and grid.pending_order['side'] == 'SELL':
             return False
         
-        # 修正：當價格 >= 賣出價時賣出（在高價賣出）
-        if current_price < grid.sell_price:
+        # 只在賣出價時賣出
+        if current_price != grid.sell_price:
             return False
         
         # 查詢實際 USDC 餘額
@@ -404,7 +405,7 @@ class FixedGridBot:
             logging.error(f"數量不足: {quantity:.2f} USDC")
             return False
         
-        logging.info(f"💰 市價賣出: {quantity:.2f} USDC @ ${current_price:.4f} (賣出價: ${grid.sell_price:.4f})")
+        logging.info(f"💰 市價賣出: {quantity:.2f} USDC")
         
         result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
         
@@ -591,7 +592,7 @@ class FixedGridBot:
         if self.current_grid and self.current_grid.active:
             grid = self.current_grid
             logging.info("📋 當前網格:")
-            logging.info(f"  {grid.id} (中心價: ${grid.center_price:.4f})")
+            logging.info(f"  {grid.id} @ ${grid.open_price:.4f}")
             logging.info(f"  開單前資產: {grid.initial_total_assets:.2f} USDT")
             logging.info(f"  買入價: ${grid.buy_price:.4f} | 賣出價: ${grid.sell_price:.4f}")
             
@@ -660,6 +661,9 @@ def main():
             if should_obs:
                 bot.try_observe()
                 last_observe_minute = new_minute
+            
+            # 持續嘗試在目標價開網格
+            bot.try_create_grid_at_target()
             
             # 更新網格
             bot.update_grid()
