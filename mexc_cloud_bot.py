@@ -140,23 +140,21 @@ class MEXCClient:
                     return float(balance['free'])
         return 0
     
-    def place_limit_order(self, symbol, side, quantity, price):
-        """下限價單"""
+    def place_market_order(self, symbol, side, quantity):
+        """下市價單"""
         params = {
             'symbol': symbol,
             'side': side,
-            'type': 'LIMIT',
-            'timeInForce': 'GTC',
-            'quantity': str(quantity),
-            'price': str(price)
+            'type': 'MARKET',
+            'quantity': str(quantity)
         }
         
         result = self._request('POST', "/api/v3/order", params)
         
         if result and 'orderId' in result:
-            logging.info(f"✓ 限價單掛出: {side} {quantity} @ ${price}")
+            logging.info(f"✓ 市價單提交: {side} {quantity}")
         else:
-            logging.error(f"✗ 限價單失敗: {result}")
+            logging.error(f"✗ 市價單失敗: {result}")
         
         return result
     
@@ -349,7 +347,7 @@ class FixedGridBot:
             print_separator()
     
     def _try_buy(self, grid, current_price):
-        """嘗試買入"""
+        """嘗試買入（市價單）"""
         # 如果已有持倉，不買
         if grid.position:
             return False
@@ -363,11 +361,11 @@ class FixedGridBot:
             return False
         
         # 計算買入數量
-        quantity = round(grid.capital / grid.buy_price, 4)
+        quantity = round(grid.capital / current_price, 4)
         
-        logging.info(f"🛒 買入: {quantity:.4f} USDC @ ${grid.buy_price:.4f}")
+        logging.info(f"🛒 市價買入: {quantity:.4f} USDC (約 {grid.capital:.2f} USDT)")
         
-        result = self.client.place_limit_order(SYMBOL, 'BUY', quantity, grid.buy_price)
+        result = self.client.place_market_order(SYMBOL, 'BUY', quantity)
         
         if result and 'orderId' in result:
             grid.pending_order = {
@@ -381,7 +379,7 @@ class FixedGridBot:
         return False
     
     def _try_sell(self, grid, current_price):
-        """嘗試賣出"""
+        """嘗試賣出（市價單）"""
         # 如果沒持倉，不賣
         if not grid.position:
             return False
@@ -394,11 +392,20 @@ class FixedGridBot:
         if current_price != grid.sell_price:
             return False
         
-        quantity = grid.position['quantity']
+        # 查詢實際 USDC 餘額
+        actual_balance = self.client.get_balance('USDC')
         
-        logging.info(f"💰 賣出: {quantity:.4f} USDC @ ${grid.sell_price:.4f}")
+        # 使用較小值並預留 0.1% 避免 Oversold
+        quantity = min(grid.position['quantity'], actual_balance) * 0.999
+        quantity = round(quantity, 4)
         
-        result = self.client.place_limit_order(SYMBOL, 'SELL', quantity, grid.sell_price)
+        if quantity < 1.01:
+            logging.error(f"數量不足: {quantity:.4f} USDC")
+            return False
+        
+        logging.info(f"💰 市價賣出: {quantity:.4f} USDC")
+        
+        result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
         
         if result and 'orderId' in result:
             grid.pending_order = {
@@ -412,7 +419,7 @@ class FixedGridBot:
         return False
     
     def _check_pending_order(self, grid):
-        """檢查掛單狀態"""
+        """檢查掛單狀態（市價單應立即成交）"""
         if not grid.pending_order:
             return
         
@@ -428,9 +435,12 @@ class FixedGridBot:
             # 成交
             side = grid.pending_order['side']
             filled_qty = float(order_info.get('executedQty', grid.pending_order['quantity']))
-            filled_price = float(order_info.get('price', 0))
             
             if side == 'BUY':
+                # 計算實際成交均價
+                filled_value = float(order_info.get('cummulativeQuoteQty', 0))
+                filled_price = filled_value / filled_qty if filled_qty > 0 else grid.buy_price
+                
                 grid.position = {
                     'quantity': filled_qty,
                     'buy_price': filled_price,
@@ -439,12 +449,16 @@ class FixedGridBot:
                 logging.info(f"✓ 買入成交: {filled_qty:.4f} USDC @ ${filled_price:.4f}")
             else:  # SELL
                 if grid.position:
+                    # 計算實際成交均價
+                    filled_value = float(order_info.get('cummulativeQuoteQty', 0))
+                    filled_price = filled_value / filled_qty if filled_qty > 0 else grid.sell_price
+                    
                     profit = (filled_price - grid.position['buy_price']) * filled_qty
                     grid.total_profit += profit
                     grid.trade_count += 1
                     self.total_profit += profit
                     self.total_trades += 1
-                    logging.info(f"✓ 賣出成交: 利潤 {profit:.6f} USDT")
+                    logging.info(f"✓ 賣出成交: {filled_qty:.4f} USDC @ ${filled_price:.4f}, 利潤 {profit:.6f} USDT")
                 grid.position = None
             
             grid.pending_order = None
@@ -454,10 +468,9 @@ class FixedGridBot:
             grid.pending_order = None
         
         elif status in ['NEW', 'PARTIALLY_FILLED']:
-            # 檢查是否超時
-            if time.time() - grid.pending_order['created_time'] > ORDER_TIMEOUT:
-                logging.warning("訂單超時，取消")
-                self.client.cancel_order(SYMBOL, order_id)
+            # 市價單應該很快成交，超過 3 秒還沒完全成交就有問題
+            if time.time() - grid.pending_order['created_time'] > 3:
+                logging.warning(f"市價單異常緩慢: {status}")
                 grid.pending_order = None
     
     def update_grid(self):
@@ -496,37 +509,36 @@ class FixedGridBot:
             self.client.cancel_order(SYMBOL, grid.pending_order['order_id'])
             grid.pending_order = None
         
-        # 止損/止盈賣出持倉
+        # 止損/止盈賣出持倉（市價）
         if grid.position:
-            quantity = grid.position['quantity']
+            quantity = round(grid.position['quantity'] * 0.999, 4)
             
-            # 用市價 - 0.0001 確保成交
-            sell_price = round(current_price - GRID_TICK, 4)
-            
-            logging.info(f"清倉持倉: {quantity:.4f} USDC @ ${sell_price:.4f}")
-            result = self.client.place_limit_order(SYMBOL, 'SELL', quantity, sell_price)
+            logging.info(f"清倉持倉: {quantity:.4f} USDC (市價)")
+            result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
             
             if result and 'orderId' in result:
-                # 等待成交
                 time.sleep(2)
                 order_info = self.client.query_order(SYMBOL, result['orderId'])
                 
                 if order_info and order_info.get('status') == 'FILLED':
-                    filled_price = float(order_info.get('price', sell_price))
-                    profit = (filled_price - grid.position['buy_price']) * quantity
+                    filled_qty = float(order_info.get('executedQty', quantity))
+                    filled_value = float(order_info.get('cummulativeQuoteQty', 0))
+                    filled_price = filled_value / filled_qty if filled_qty > 0 else current_price
+                    
+                    profit = (filled_price - grid.position['buy_price']) * filled_qty
                     grid.total_profit += profit
                     self.total_profit += profit
                     logging.info(f"✓ 清倉成交: {profit:+.6f} USDT")
         
-        # 檢查並清空所有剩餘 USDC
+        # 檢查並清空所有剩餘 USDC（市價）
         time.sleep(1)
         remaining_usdc = self.client.get_balance('USDC')
         
-        if remaining_usdc > 0.01:  # 如果還有超過 0.01 USDC
+        if remaining_usdc > 0.01:
             logging.info(f"清空剩餘 USDC: {remaining_usdc:.4f}")
-            sell_price = round(current_price - GRID_TICK, 4)
+            quantity = round(remaining_usdc * 0.999, 4)
             
-            result = self.client.place_limit_order(SYMBOL, 'SELL', round(remaining_usdc, 4), sell_price)
+            result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
             
             if result and 'orderId' in result:
                 time.sleep(2)
@@ -535,7 +547,7 @@ class FixedGridBot:
                 if order_info and order_info.get('status') == 'FILLED':
                     logging.info(f"✓ USDC 已清空")
                 else:
-                    logging.warning(f"部分 USDC 未清空，剩餘: {self.client.get_balance('USDC'):.4f}")
+                    logging.warning(f"部分 USDC 未清空")
         
         logging.info(f"網格 {grid.id} 已關閉")
         logging.info(f"  交易次數: {grid.trade_count}")
