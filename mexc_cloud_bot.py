@@ -40,8 +40,8 @@ class MEXCGridBot:
         """生成簽名"""
         query_string = '&'.join([f"{k}={v}" for k, v in sorted(params.items())])
         signature = hmac.new(
-            self.api_secret.encode('utf-8'),
-            query_string.encode('utf-8'),
+            bytes(self.api_secret, 'utf-8'),
+            bytes(query_string, 'utf-8'),
             hashlib.sha256
         ).hexdigest()
         return signature
