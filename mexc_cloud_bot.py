@@ -314,12 +314,3 @@ class MEXCGridBot:
 if __name__ == "__main__":
     bot = MEXCGridBot()
     bot.run()
-
-
-# .env 文件範例 (請創建並填入你的API密鑰):
-# MEXC_API_KEY=your_new_api_key_here
-# MEXC_API_SECRET=your_new_secret_key_here
-
-# requirements.txt 內容:
-# requests==2.31.0
-# python-dotenv==1.0.0
