@@ -38,10 +38,13 @@ class MEXCGridBot:
     
     def generate_signature(self, params):
         """生成簽名"""
-        query_string = '&'.join([f"{k}={v}" for k, v in sorted(params.items())])
+        # 將所有值轉換為字符串
+        str_params = {k: str(v) for k, v in params.items()}
+        query_string = '&'.join([f"{k}={str_params[k]}" for k in sorted(str_params.keys())])
+        
         signature = hmac.new(
-            bytes(self.api_secret, 'utf-8'),
-            bytes(query_string, 'utf-8'),
+            self.api_secret.encode('utf-8'),
+            query_string.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
         return signature
@@ -106,9 +109,11 @@ class MEXCGridBot:
             }
             
             if side == 'BUY' and quote_qty is not None:
-                params['quoteOrderQty'] = str(quote_qty)
+                # 確保是字符串格式，保留足夠精度
+                params['quoteOrderQty'] = f"{quote_qty:.8f}".rstrip('0').rstrip('.')
             elif quantity is not None:
-                params['quantity'] = str(quantity)
+                # 確保是字符串格式，保留足夠精度
+                params['quantity'] = f"{quantity:.8f}".rstrip('0').rstrip('.')
             
             params['signature'] = self.generate_signature(params)
             
