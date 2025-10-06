@@ -11,8 +11,21 @@ load_dotenv()
 
 class MEXCGridBot:
     def __init__(self):
+        # 載入環境變數
+        load_dotenv()
+        
         self.api_key = os.getenv('MEXC_API_KEY')
         self.api_secret = os.getenv('MEXC_API_SECRET')
+        
+        # 檢查API密鑰是否存在
+        if not self.api_key or not self.api_secret:
+            raise ValueError(
+                "錯誤：API密鑰未設定！\n"
+                "請確認 .env 文件存在且包含：\n"
+                "MEXC_API_KEY=你的API密鑰\n"
+                "MEXC_API_SECRET=你的秘密密鑰"
+            )
+        
         self.base_url = 'https://api.mexc.com'
         
         self.symbol = 'USDCUSDT'
@@ -29,6 +42,7 @@ class MEXCGridBot:
         
         print(f"[{self.get_time()}] MEXC 網格交易機器人啟動")
         print(f"[{self.get_time()}] 交易對: {self.symbol}")
+        print(f"[{self.get_time()}] API密鑰已載入: {self.api_key[:10]}...")
         print(f"[{self.get_time()}] 查價間隔: 0.3秒")
         print("-" * 50)
     
@@ -77,19 +91,33 @@ class MEXCGridBot:
             
             headers = {'X-MEXC-APIKEY': self.api_key}
             url = f"{self.base_url}/api/v3/account"
-            response = requests.get(url, params=params, headers=headers, timeout=5)
+            
+            print(f"[{self.get_time()}] 查詢餘額 - API Key: {self.api_key[:10]}...")
+            print(f"[{self.get_time()}] 請求URL: {url}")
+            print(f"[{self.get_time()}] 參數: timestamp={timestamp}")
+            
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            
+            print(f"[{self.get_time()}] 回應狀態碼: {response.status_code}")
+            print(f"[{self.get_time()}] 回應內容: {response.text[:200]}")
             
             if response.status_code == 200:
                 data = response.json()
                 for balance in data['balances']:
                     if balance['asset'] == asset:
-                        return float(balance['free'])
+                        free_balance = float(balance['free'])
+                        print(f"[{self.get_time()}] {asset} 可用餘額: {free_balance}")
+                        return free_balance
+                print(f"[{self.get_time()}] 未找到 {asset} 資產")
                 return 0.0
             else:
-                print(f"[{self.get_time()}] 獲取餘額失敗: {response.text}")
+                print(f"[{self.get_time()}] 獲取餘額失敗 - 狀態碼: {response.status_code}")
+                print(f"[{self.get_time()}] 錯誤訊息: {response.text}")
                 return 0.0
         except Exception as e:
             print(f"[{self.get_time()}] 獲取餘額錯誤: {e}")
+            import traceback
+            traceback.print_exc()
             return 0.0
     
     def place_market_order(self, side, quantity=None, quote_qty=None):
