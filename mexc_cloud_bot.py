@@ -1,591 +1,267 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-import subprocess
-import sys
-
-def install_package(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-try:
-    import requests
-except ImportError:
-    print("正在安裝 requests...")
-    install_package("requests==2.31.0")
-    import requests
-
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    print("正在安裝 python-dotenv...")
-    install_package("python-dotenv==1.0.0")
-    from dotenv import load_dotenv
-
-load_dotenv()
-
-import time
-import hashlib
-import hmac
 import os
-from urllib.parse import urlencode
+import time
+import hmac
+import hashlib
+import requests
 from datetime import datetime
-import logging
+from dotenv import load_dotenv
 
-# ==================== 配置區域 ====================
+# ==================== 配置區 (可修改) ====================
+OBSERVATION_PERIOD = 15  # 觀察市場秒數
+CHECK_PRICE_INTERVAL = 0.3  # 查價間隔（秒）
+WAIT_BEFORE_NEXT_CYCLE = 60  # 量化交易結束後等待秒數
+TRADE_PERCENTAGE = 0.5  # 使用資金比例 (50%)
+SYMBOL = "USDC_USDT"  # 交易對
+MIN_TICK = 0.0001  # 最小價格變動
+BASE_CURRENCY = "USDC"  # 基礎貨幣
+QUOTE_CURRENCY = "USDT"  # 計價貨幣
 
-API_KEY = os.getenv('MEXC_API_KEY', 'mx0vglaUUDV1VP6KTU')
-SECRET_KEY = os.getenv('MEXC_SECRET_KEY', '0e3a3cb6b0e24b0fbdf82d0c1e15c4b1')
+# ==================== API 配置 ====================
+load_dotenv()
+API_KEY = os.getenv('MEXC_API_KEY')
+API_SECRET = os.getenv('MEXC_API_SECRET')
+BASE_URL = "https://api.mexc.com"
 
-SYMBOL = "USDCUSDT"
-TICK_SIZE = 0.0001
+# ==================== 全域變數 ====================
+total_trades = 0
+total_profit = 0.0
+holding_usdc = False
+usdc_amount = 0.0
+buy_price = 0.0
 
-CAPITAL_PERCENT = 0.5
-CHECK_PRICE_INTERVAL = 0.3
-DISPLAY_STATUS_INTERVAL = 60
+# ==================== 工具函數 ====================
+def log(message, level="INFO"):
+    """統一日誌格式"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{timestamp}] [{level}] {message}")
 
-ENABLE_SCHEDULE = True
-SCHEDULE_MINUTES = list(range(60))
-OBSERVATION_SECONDS = 15
-WAIT_BUY_SECONDS = 15
+def generate_signature(params):
+    """生成 MEXC API 簽名"""
+    query_string = '&'.join([f"{k}={v}" for k, v in sorted(params.items())])
+    signature = hmac.new(
+        API_SECRET.encode('utf-8'),
+        query_string.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    return signature
 
-DEBUG_MODE = os.getenv('DEBUG_MODE', 'True').lower() == 'true'
-
-# ==================== 配置區域結束 ====================
-
-log_level = logging.DEBUG if DEBUG_MODE else logging.INFO
-logging.basicConfig(
-    level=log_level,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
-def print_separator():
-    print("=" * 80)
-
-class MEXCClient:
-    def __init__(self, api_key, secret_key):
-        self.api_key = api_key
-        self.secret_key = secret_key
-        self.base_url = "https://api.mexc.com"
-    
-    def _generate_signature(self, query_string):
-        return hmac.new(
-            self.secret_key.encode('utf-8'),
-            query_string.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
-    
-    def _request(self, method, endpoint, params=None):
-        if params is None:
-            params = {}
-        
-        params['timestamp'] = int(time.time() * 1000)
-        params = {k: str(v) for k, v in params.items() if v is not None and str(v) != ''}
-        sorted_params = dict(sorted(params.items()))
-        query_string = urlencode(sorted_params)
-        signature = self._generate_signature(query_string)
-        sorted_params['signature'] = signature
-        
-        headers = {'X-MEXC-APIKEY': self.api_key}
-        url = f"{self.base_url}{endpoint}"
-        
-        try:
-            if method == 'POST':
-                response = requests.post(url, data=urlencode(sorted_params), headers=headers, timeout=30)
-            elif method == 'DELETE':
-                response = requests.delete(url, params=sorted_params, headers=headers, timeout=30)
-            else:
-                response = requests.get(url, params=sorted_params, headers=headers, timeout=30)
-            
-            if DEBUG_MODE and method in ['POST', 'DELETE']:
-                logging.debug(f"API {method} {endpoint}: {response.status_code}")
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                logging.error(f"API 錯誤: {response.status_code} - {response.text}")
-                return None
-        except Exception as e:
-            logging.error(f"請求異常: {e}")
-            return None
-    
-    def get_price(self, symbol):
-        result = self._request('GET', "/api/v3/ticker/price", {'symbol': symbol})
-        if result and 'price' in result:
-            return round(float(result['price']), 4)
+def get_current_price():
+    """獲取當前市場價格"""
+    try:
+        url = f"{BASE_URL}/api/v3/ticker/price"
+        params = {'symbol': SYMBOL}
+        response = requests.get(url, params=params, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        return float(data['price'])
+    except Exception as e:
+        log(f"獲取價格失敗: {e}", "ERROR")
         return None
-    
-    def get_balance(self, asset):
-        result = self._request('GET', "/api/v3/account")
-        if result and 'balances' in result:
-            for balance in result['balances']:
-                if balance['asset'] == asset:
-                    return float(balance['free'])
-        return 0
-    
-    def place_market_order(self, symbol, side, quantity):
+
+def get_account_balance():
+    """獲取帳戶餘額"""
+    try:
+        timestamp = int(time.time() * 1000)
         params = {
-            'symbol': symbol,
+            'timestamp': timestamp,
+            'recvWindow': 5000
+        }
+        params['signature'] = generate_signature(params)
+        
+        headers = {'X-MEXC-APIKEY': API_KEY}
+        url = f"{BASE_URL}/api/v3/account"
+        
+        response = requests.get(url, params=params, headers=headers, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        balances = {}
+        for balance in data['balances']:
+            if balance['asset'] in [BASE_CURRENCY, QUOTE_CURRENCY]:
+                balances[balance['asset']] = float(balance['free'])
+        
+        return balances
+    except Exception as e:
+        log(f"獲取餘額失敗: {e}", "ERROR")
+        return None
+
+def place_market_order(side, quantity):
+    """下市價單
+    side: 'BUY' 或 'SELL'
+    quantity: USDC 數量（賣出時）或 USDT 金額（買入時）
+    """
+    global total_trades, total_profit, holding_usdc, usdc_amount, buy_price
+    
+    try:
+        timestamp = int(time.time() * 1000)
+        
+        # 買入時用 quoteOrderQty（USDT金額），賣出時用 quantity（USDC數量）
+        params = {
+            'symbol': SYMBOL,
             'side': side,
             'type': 'MARKET',
+            'timestamp': timestamp,
+            'recvWindow': 5000
         }
         
         if side == 'BUY':
-            params['quoteOrderQty'] = str(quantity)
-            logging.info(f"✓ 市價買單: 使用 {quantity} USDT 買入 USDC")
+            params['quoteOrderQty'] = round(quantity, 2)  # USDT 金額
         else:
-            params['quantity'] = str(quantity)
-            logging.info(f"✓ 市價賣單: 賣出 {quantity} USDC")
+            params['quantity'] = round(quantity, 4)  # USDC 數量
         
-        result = self._request('POST', "/api/v3/order", params)
+        params['signature'] = generate_signature(params)
         
-        if result and 'orderId' in result:
-            logging.info(f"  訂單ID: {result['orderId']}")
+        headers = {'X-MEXC-APIKEY': API_KEY}
+        url = f"{BASE_URL}/api/v3/order"
+        
+        response = requests.post(url, params=params, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        # 計算成交均價
+        executed_qty = float(data.get('executedQty', 0))
+        cumulative_quote_qty = float(data.get('cummulativeQuoteQty', 0))
+        
+        if executed_qty > 0:
+            avg_price = cumulative_quote_qty / executed_qty
         else:
-            logging.error(f"✗ 市價單失敗: {result}")
+            avg_price = 0
         
-        return result
-    
-    def query_order(self, symbol, order_id):
-        return self._request('GET', "/api/v3/order", {'symbol': symbol, 'orderId': order_id})
+        if side == 'BUY':
+            holding_usdc = True
+            usdc_amount = executed_qty
+            buy_price = avg_price
+            log(f"✅ 買入: {quantity:.2f} USDT → {executed_qty:.4f} USDC (價格: {avg_price:.4f})")
+        else:
+            profit = cumulative_quote_qty - (usdc_amount * buy_price)
+            total_profit += profit
+            holding_usdc = False
+            log(f"✅ 賣出: {executed_qty:.4f} USDC → {cumulative_quote_qty:.2f} USDT (價格: {avg_price:.4f}, 利潤: {profit:+.4f} USDT)")
+        
+        total_trades += 1
+        log(f"📊 累計交易: {total_trades} 次 | 總利潤: {total_profit:+.4f} USDT")
+        
+        return True
+    except Exception as e:
+        log(f"下單失敗 ({side}): {e}", "ERROR")
+        return False
 
-class FixedGrid:
-    def __init__(self, grid_id, min_price, max_price, capital):
-        self.id = grid_id
-        self.min_price = round(min_price, 4)
-        self.max_price = round(max_price, 4)
-        self.capital = capital
-        self.created_time = datetime.now()
-        self.active = True
-        
-        self.buy_price = self.min_price
-        self.sell_price = self.max_price
-        self.lower_stop = round(self.min_price - TICK_SIZE, 4)
-        self.upper_stop = round(self.max_price + TICK_SIZE, 4)
-        
-        self.position = None
-        self.total_profit = 0
-        self.trade_count = 0
-        self.pending_order = None
-        self.initial_buy_done = False
-        self.initial_buy_deadline = None
+def observe_market():
+    """觀察市場，返回價格邊界"""
+    log(f"👀 開始觀察市場 {OBSERVATION_PERIOD} 秒...")
     
-    def should_close(self, current_price):
-        return current_price <= self.lower_stop or current_price >= self.upper_stop
-
-class FixedGridBot:
-    def __init__(self, client):
-        self.client = client
-        self.current_grid = None
-        self.grid_counter = 0
-        self.total_profit = 0
-        self.total_trades = 0
-        self.initial_assets = self._get_total_assets()
-        self._display_startup()
+    prices = []
+    end_time = time.time() + OBSERVATION_PERIOD
     
-    def _get_total_assets(self):
-        usdt = self.client.get_balance('USDT')
-        usdc = self.client.get_balance('USDC')
-        price = self.client.get_price(SYMBOL)
-        
+    while time.time() < end_time:
+        price = get_current_price()
         if price:
-            total = usdt + (usdc * price)
-            return {
-                'USDT': usdt,
-                'USDC': usdc,
-                'price': price,
-                'total': total,
-                'timestamp': datetime.now()
-            }
-        return None
+            prices.append(price)
+        time.sleep(CHECK_PRICE_INTERVAL)
     
-    def _display_startup(self):
-        print_separator()
-        logging.info("USDC/USDT 震盪區間套利機器人")
-        print_separator()
-        
-        if self.initial_assets:
-            logging.info(f"當前價格: ${self.initial_assets['price']:.4f}")
-            logging.info("")
-            logging.info("💰 初始資產:")
-            logging.info(f"  USDT: {self.initial_assets['USDT']:.2f}")
-            logging.info(f"  USDC: {self.initial_assets['USDC']:.4f}")
-            logging.info(f"  總值: {self.initial_assets['total']:.2f} USDT")
-            logging.info("")
-            logging.info("⚙️  策略配置:")
-            logging.info(f"  每單資金: 總資產 × {CAPITAL_PERCENT * 100}%")
-            logging.info(f"  觀察時間: {OBSERVATION_SECONDS} 秒")
-            logging.info(f"  等待買入: {WAIT_BUY_SECONDS} 秒")
-        print_separator()
+    if not prices:
+        log("觀察期間未獲取到價格", "ERROR")
+        return None, None
     
-    def _observe_price_range(self):
-        logging.info(f"🔍 開始觀察價格區間 {OBSERVATION_SECONDS} 秒...")
-        
-        prices = []
-        start_time = time.time()
-        
-        while time.time() - start_time < OBSERVATION_SECONDS:
-            price = self.client.get_price(SYMBOL)
-            if price:
-                prices.append(price)
-                if DEBUG_MODE:
-                    logging.debug(f"  觀察價格: ${price:.4f}")
-            time.sleep(CHECK_PRICE_INTERVAL)
-        
-        if not prices:
-            logging.error("❌ 觀察期間無法獲取價格")
-            return None, None
-        
-        min_price = min(prices)
-        max_price = max(prices)
-        
-        logging.info(f"✓ 觀察完成: 震盪區間 ${min_price:.4f} ~ ${max_price:.4f}")
-        
-        return min_price, max_price
+    lower_bound = min(prices)
+    upper_bound = max(prices)
     
-    def try_create_new_grid(self):
-        if self.current_grid and self.current_grid.active:
-            return
-        
-        min_price, max_price = self._observe_price_range()
-        
-        if min_price is None or max_price is None:
-            return
-        
-        current_assets = self._get_total_assets()
-        if not current_assets:
-            logging.error("❌ 無法獲取資產資訊")
-            return
-        
-        capital = current_assets['total'] * CAPITAL_PERCENT
-        
-        if capital < 5:
-            logging.error(f"❌ 資金不足: {capital:.2f} USDT")
-            return
-        
-        self.grid_counter += 1
-        grid_id = f"Grid_{self.grid_counter}"
-        
-        print_separator()
-        logging.info(f"📊 創建網格 {grid_id}")
-        logging.info(f"  震盪區間: ${min_price:.4f} ~ ${max_price:.4f}")
-        logging.info(f"  開單資金: {capital:.2f} USDT ({CAPITAL_PERCENT * 100}%)")
-        
-        grid = FixedGrid(grid_id, min_price, max_price, capital)
-        grid.initial_total_assets = current_assets['total']
-        grid.initial_buy_deadline = time.time() + WAIT_BUY_SECONDS
-        
-        logging.info(f"  買入價格: ${grid.buy_price:.4f}")
-        logging.info(f"  賣出價格: ${grid.sell_price:.4f}")
-        logging.info(f"  ⏳ 等待價格到達 ${grid.buy_price:.4f}，限時 {WAIT_BUY_SECONDS} 秒")
-        
-        self.current_grid = grid
-        print_separator()
-    
-    def _try_initial_buy(self, grid, current_price):
-        if grid.initial_buy_done:
-            return
-        
-        if time.time() > grid.initial_buy_deadline:
-            logging.warning(f"⏰ 首次買入超時，放棄網格 {grid.id}")
-            grid.active = False
-            self.current_grid = None
-            return
-        
-        if grid.pending_order and grid.pending_order['side'] == 'BUY':
-            return
-        
-        if current_price != grid.buy_price:
-            if DEBUG_MODE:
-                logging.debug(f"等待買入: 當前 ${current_price:.4f}, 目標 ${grid.buy_price:.4f}")
-            return
-        
-        usdt_amount = round(grid.capital, 2)
-        
-        logging.info(f"🎯 價格到達 ${current_price:.4f}，執行買入！")
-        
-        result = self.client.place_market_order(SYMBOL, 'BUY', usdt_amount)
-        
-        if result and 'orderId' in result:
-            grid.pending_order = {
-                'order_id': result['orderId'],
-                'side': 'BUY',
-                'created_time': time.time(),
-                'quantity': usdt_amount
-            }
-    
-    def _try_buy(self, grid, current_price):
-        if grid.position:
-            return False
-        
-        if grid.pending_order and grid.pending_order['side'] == 'BUY':
-            return False
-        
-        if current_price != grid.buy_price:
-            return False
-        
-        usdt_amount = round(grid.capital, 2)
-        
-        logging.info(f"🔄 循環買入: 價格 ${current_price:.4f}")
-        
-        result = self.client.place_market_order(SYMBOL, 'BUY', usdt_amount)
-        
-        if result and 'orderId' in result:
-            grid.pending_order = {
-                'order_id': result['orderId'],
-                'side': 'BUY',
-                'created_time': time.time(),
-                'quantity': usdt_amount
-            }
-            return True
-        
-        return False
-    
-    def _try_sell(self, grid, current_price):
-        if not grid.position:
-            return False
-        
-        if grid.pending_order and grid.pending_order['side'] == 'SELL':
-            return False
-        
-        if current_price != grid.sell_price:
-            return False
-        
-        actual_balance = self.client.get_balance('USDC')
-        quantity = min(grid.position['quantity'], actual_balance) * 0.999
-        quantity = round(quantity, 2)
-        
-        if quantity < 1.01:
-            logging.error(f"數量不足: {quantity:.2f} USDC")
-            return False
-        
-        logging.info(f"💰 賣出觸發: 價格 ${current_price:.4f}")
-        
-        result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
-        
-        if result and 'orderId' in result:
-            grid.pending_order = {
-                'order_id': result['orderId'],
-                'side': 'SELL',
-                'created_time': time.time(),
-                'quantity': quantity
-            }
-            return True
-        
-        return False
-    
-    def _check_pending_order(self, grid):
-        if not grid.pending_order:
-            return
-        
-        order_id = grid.pending_order['order_id']
-        order_info = self.client.query_order(SYMBOL, order_id)
-        
-        if not order_info:
-            return
-        
-        status = order_info.get('status')
-        
-        if status == 'FILLED':
-            side = grid.pending_order['side']
-            filled_qty = float(order_info.get('executedQty', grid.pending_order['quantity']))
-            
-            if side == 'BUY':
-                filled_value = float(order_info.get('cummulativeQuoteQty', 0))
-                filled_price = filled_value / filled_qty if filled_qty > 0 else grid.buy_price
-                
-                grid.position = {
-                    'quantity': filled_qty,
-                    'buy_price': filled_price,
-                    'buy_time': time.time()
-                }
-                logging.info(f"✓ 買入成交: {filled_qty:.4f} USDC @ ${filled_price:.4f}")
-                
-                if not grid.initial_buy_done:
-                    grid.initial_buy_done = True
-            else:
-                if grid.position:
-                    filled_value = float(order_info.get('cummulativeQuoteQty', 0))
-                    filled_price = filled_value / filled_qty if filled_qty > 0 else grid.sell_price
-                    
-                    profit = (filled_price - grid.position['buy_price']) * filled_qty
-                    grid.total_profit += profit
-                    grid.trade_count += 1
-                    self.total_profit += profit
-                    self.total_trades += 1
-                    logging.info(f"✓ 賣出成交: {filled_qty:.4f} USDC @ ${filled_price:.4f}, 利潤 {profit:.6f} USDT")
-                grid.position = None
-            
-            grid.pending_order = None
-        
-        elif status in ['CANCELED', 'REJECTED', 'EXPIRED', 'FAILED']:
-            logging.error(f"訂單失敗: {status}")
-            grid.pending_order = None
-        
-        elif status in ['NEW', 'PARTIALLY_FILLED']:
-            if time.time() - grid.pending_order['created_time'] > 3:
-                logging.warning(f"市價單異常緩慢: {status}")
-    
-    def update_grid(self):
-        if not self.current_grid or not self.current_grid.active:
-            return
-        
-        current_price = self.client.get_price(SYMBOL)
-        if not current_price:
-            return
-        
-        grid = self.current_grid
-        
-        if grid.should_close(current_price):
-            logging.warning(f"⚠️  價格 ${current_price:.4f} 觸發止損/止盈")
-            self.close_grid(grid, current_price)
-            return
-        
-        self._check_pending_order(grid)
-        
-        if not grid.initial_buy_done:
-            self._try_initial_buy(grid, current_price)
-            return
-        
-        if not grid.pending_order:
-            if not grid.position:
-                self._try_buy(grid, current_price)
-            else:
-                self._try_sell(grid, current_price)
-    
-    def close_grid(self, grid, current_price):
-        grid.active = False
-        
-        if grid.position:
-            quantity = round(grid.position['quantity'] * 0.999, 2)
-            logging.info(f"清倉持倉: {quantity:.2f} USDC")
-            result = self.client.place_market_order(SYMBOL, 'SELL', quantity)
-            
-            if result and 'orderId' in result:
-                time.sleep(2)
-                order_info = self.client.query_order(SYMBOL, result['orderId'])
-                
-                if order_info and order_info.get('status') == 'FILLED':
-                    filled_qty = float(order_info.get('executedQty', quantity))
-                    filled_value = float(order_info.get('cummulativeQuoteQty', 0))
-                    filled_price = filled_value / filled_qty if filled_qty > 0 else current_price
-                    
-                    profit = (filled_price - grid.position['buy_price']) * filled_qty
-                    grid.total_profit += profit
-                    self.total_profit += profit
-                    logging.info(f"✓ 清倉成交: {profit:+.6f} USDT")
-        
-        time.sleep(1)
-        remaining_usdc = self.client.get_balance('USDC')
-        
-        if remaining_usdc > 0.01:
-            logging.info(f"清空剩餘 USDC: {remaining_usdc:.4f}")
-            quantity = round(remaining_usdc * 0.999, 2)
-            self.client.place_market_order(SYMBOL, 'SELL', quantity)
-            time.sleep(2)
-        
-        logging.info(f"網格 {grid.id} 已關閉，利潤: {grid.total_profit:+.6f} USDT")
-        self.current_grid = None
-    
-    def display_status(self):
-        current_assets = self._get_total_assets()
-        
-        print_separator()
-        logging.info("📊 狀態報告")
-        print_separator()
-        
-        if current_assets and self.initial_assets:
-            logging.info(f"💱 當前價格: ${current_assets['price']:.4f}")
-            
-            initial_value = self.initial_assets['total']
-            current_value = current_assets['total']
-            change = current_value - initial_value
-            percent = (change / initial_value * 100) if initial_value > 0 else 0
-            
-            logging.info(f"💰 資產: {current_value:.2f} USDT (盈虧: {change:+.4f} USDT / {percent:+.2f}%)")
-            logging.info(f"📈 累計套利: {self.total_trades} 次，利潤: {self.total_profit:+.6f} USDT")
-        
-        if self.current_grid and self.current_grid.active:
-            grid = self.current_grid
-            logging.info(f"📋 當前網格: {grid.id} @ ${grid.min_price:.4f}~${grid.max_price:.4f}")
-            
-            if not grid.initial_buy_done:
-                remaining = grid.initial_buy_deadline - time.time()
-                logging.info(f"  等待首次買入 (剩餘 {remaining:.0f} 秒)")
-            elif grid.position:
-                logging.info(f"  持倉: {grid.position['quantity']:.2f} USDC @ ${grid.position['buy_price']:.4f}")
-            else:
-                logging.info(f"  無持倉，等待買入")
-        
-        print_separator()
+    log(f"📈 邊界設定: {lower_bound:.4f} - {upper_bound:.4f}")
+    return lower_bound, upper_bound
 
-def should_observe(last_observe_minute):
-    if not ENABLE_SCHEDULE:
-        return False, -1
+def force_close_position():
+    """強制平倉"""
+    global holding_usdc, usdc_amount
     
-    now = datetime.now()
+    if holding_usdc and usdc_amount > 0:
+        log("⚠️ 強制平倉所有 USDC...", "WARNING")
+        if place_market_order('SELL', usdc_amount):
+            usdc_amount = 0
+            holding_usdc = False
+            return True
+    return False
+
+def trading_cycle():
+    """單次量化交易循環"""
+    global holding_usdc, usdc_amount
     
-    if now.minute in SCHEDULE_MINUTES and now.minute != last_observe_minute and now.second < 10:
-        return True, now.minute
+    # 1. 觀察市場
+    lower_bound, upper_bound = observe_market()
+    if not lower_bound or not upper_bound:
+        return False
     
-    return False, last_observe_minute
+    # 2. 獲取初始餘額
+    balances = get_account_balance()
+    if not balances:
+        return False
+    
+    available_usdt = balances.get(QUOTE_CURRENCY, 0)
+    log(f"💰 可用餘額: {available_usdt:.2f} USDT")
+    
+    if available_usdt < 1:
+        log("餘額不足 1 USDT，無法交易", "ERROR")
+        return False
+    
+    trade_amount = available_usdt * TRADE_PERCENTAGE
+    log(f"💵 本次交易金額: {trade_amount:.2f} USDT ({TRADE_PERCENTAGE*100}%)")
+    
+    # 3. 開始交易循環
+    log("🚀 開始量化交易...")
+    
+    while True:
+        current_price = get_current_price()
+        
+        if not current_price:
+            time.sleep(CHECK_PRICE_INTERVAL)
+            continue
+        
+        # 檢查是否突破邊界
+        if current_price > upper_bound or current_price < lower_bound:
+            log(f"🛑 價格突破邊界 (當前: {current_price:.4f})，關閉量化交易", "WARNING")
+            force_close_position()
+            break
+        
+        # 買入邏輯：價格 = lower_bound 且未持倉
+        if not holding_usdc and abs(current_price - lower_bound) < MIN_TICK / 2:
+            place_market_order('BUY', trade_amount)
+        
+        # 賣出邏輯：價格 = upper_bound 且持有倉位
+        elif holding_usdc and abs(current_price - upper_bound) < MIN_TICK / 2:
+            place_market_order('SELL', usdc_amount)
+        
+        time.sleep(CHECK_PRICE_INTERVAL)
+    
+    return True
 
 def main():
-    logging.info("🚀 啟動 USDC/USDT 震盪區間套利機器人...")
+    """主程式"""
+    log("=" * 60)
+    log("🤖 MEXC USDC/USDT 量化交易機器人啟動")
+    log("=" * 60)
     
-    client = MEXCClient(API_KEY, SECRET_KEY)
-    
-    test_price = client.get_price(SYMBOL)
-    if not test_price:
-        logging.error("❌ API 連接失敗")
+    if not API_KEY or not API_SECRET:
+        log("未設定 API Key，請檢查 .env 文件", "ERROR")
         return
     
-    logging.info(f"✓ API 連接成功，當前價格: ${test_price:.4f}")
+    cycle_count = 0
     
-    usdt = client.get_balance('USDT')
-    usdc = client.get_balance('USDC')
-    logging.info(f"💼 帳戶資產: USDT {usdt:.2f} | USDC {usdc:.4f}")
-    
-    total_assets = usdt + (usdc * test_price)
-    required_capital = total_assets * CAPITAL_PERCENT
-    
-    if required_capital < 5:
-        logging.error(f"❌ 資金不足！需要至少 10 USDT 總資產")
-        return
-    
-    bot = FixedGridBot(client)
-    
-    last_observe_minute = -1
-    last_display_time = time.time()
-    
-    try:
-        while True:
-            should_obs, new_minute = should_observe(last_observe_minute)
-            if should_obs:
-                bot.try_create_new_grid()
-                last_observe_minute = new_minute
-            
-            bot.update_grid()
-            
-            if time.time() - last_display_time >= DISPLAY_STATUS_INTERVAL:
-                bot.display_status()
-                last_display_time = time.time()
-            
-            time.sleep(CHECK_PRICE_INTERVAL)
-    
-    except KeyboardInterrupt:
-        logging.info("⛔ 停止中...")
+    while True:
+        cycle_count += 1
+        log(f"\n{'=' * 60}")
+        log(f"🔄 第 {cycle_count} 輪量化交易")
+        log(f"{'=' * 60}")
         
-        if bot.current_grid and bot.current_grid.active:
-            current_price = client.get_price(SYMBOL)
-            bot.close_grid(bot.current_grid, current_price)
+        try:
+            trading_cycle()
+        except KeyboardInterrupt:
+            log("\n👋 收到停止信號，正在安全退出...", "WARNING")
+            force_close_position()
+            break
+        except Exception as e:
+            log(f"交易循環出現錯誤: {e}", "ERROR")
         
-        logging.info("👋 程序已退出")
-    
-    except Exception as e:
-        logging.error(f"❌ 程序異常: {e}")
-        import traceback
-        traceback.print_exc()
+        log(f"⏳ 等待 {WAIT_BEFORE_NEXT_CYCLE} 秒後開始下一輪...")
+        time.sleep(WAIT_BEFORE_NEXT_CYCLE)
 
 if __name__ == "__main__":
     main()

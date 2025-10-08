@@ -1,3 +1,34 @@
+# 環境變數文件（包含 API Key）
 .env
+
+# Python 相關
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# IDE 相關
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 作業系統相關
+.DS_Store
+Thumbs.db
+
+# 日誌文件
+*.log
+
+# 測試相關
+.pytest_cache/
+.coverage
+htmlcov/
